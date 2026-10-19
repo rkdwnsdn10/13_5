@@ -1,237 +1,256 @@
-import time
 import streamlit as st
-import streamlit.components.v1 as components
+import datetime
 
-# 페이지 설정
+# ---------------------------------------------------------
+# Page Configuration
+# ---------------------------------------------------------
 st.set_page_config(
-    page_title="스마트 작업 & 학습 타임키퍼",
-    page_icon="🚨",
-    layout="centered"
+    page_title="정기운 선생님을 위한 Smart Classroom",
+    page_icon="🏫",
+    layout="wide"
 )
 
+# ---------------------------------------------------------
+# Session State Initialization (데이터 안전성 보장)
+# ---------------------------------------------------------
+if "alarm_count" not in st.session_state:
+    st.session_state["alarm_count"] = 3
 
-# WEB AUDIO API 기반 브라우저 경고음 재생 함수
-def play_sound(sound_type="beep"):
-    """Streamlit Cloud에서 100% 안정적으로 작동하는 브라우저 오디오 합성 경고음 generator"""
-    js_code = f"""
-    <script>
-    (function() {{
-        try {{
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            
-            const type = "{sound_type}";
-            
-            if (type === "beep") {{
-                // 일반 경고음 (Short Double Beep)
-                [0, 0.2].forEach(delay => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime + delay); // A5
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.15);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + delay);
-                    osc.stop(ctx.currentTime + delay + 0.15);
-                }});
-            }} else if (type === "siren") {{
-                // 강한 경고음 (Siren Alarm)
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sawtooth';
-                gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                
-                // Frequency modulation for siren effect
-                osc.frequency.setValueAtTime(400, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.3);
-                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.6);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.9);
-                
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 1.0);
-            }} else if (type === "complete") {{
-                // 성공 / 완료 알림음 (Chime Tone)
-                const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
-                freqs.forEach((freq, idx) => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, ctx.currentTime + (idx * 0.12));
-                    gain.gain.setValueAtTime(0.2, ctx.currentTime + (idx * 0.12));
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (idx * 0.12) + 0.3);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + (idx * 0.12));
-                    osc.stop(ctx.currentTime + (idx * 0.12) + 0.3);
-                }});
-            }}
-        }} catch(e) {{
-            console.error("Audio Playback Error:", e);
-        }}
-    }})();
-    </script>
-    """
-    components.html(js_code, height=0, width=0)
+if "demerits" not in st.session_state:
+    st.session_state["demerits"] = [
+        {"학생 이름": "김철수", "사유": "수업 시간 지각", "벌점": 2, "날짜": "2026-10-19"},
+        {"학생 이름": "이영희", "사유": "청소 시간 무단 탈주", "벌점": 3, "날짜": "2026-10-19"}
+    ]
 
+if "anonymous_letters" not in st.session_state:
+    st.session_state["anonymous_letters"] = [
+        {"id": 1, "content": "선생님 항상 수업 재미있게 해주셔서 감사합니다!", "date": "2026-10-18"},
+        {"id": 2, "content": "다음 주 학급 체육대회 종목이 궁금해요.", "date": "2026-10-19"},
+        {"id": 3, "content": "오늘 자리 배치 바꿔주셔서 정말 좋아요!", "date": "2026-10-19"}
+    ]
 
-# 세션 상태 초기화
-if "running" not in st.session_state:
-    st.session_state.running = False
-if "time_left" not in st.session_state:
-    st.session_state.time_left = 0
-if "mode" not in st.session_state:
-    st.session_state.mode = "Work"  # Work or Break
-if "completed_sessions" not in st.session_state:
-    st.session_state.completed_sessions = 0
+if "cleaning_status" not in st.session_state:
+    st.session_state["cleaning_status"] = "보통"
 
-# UI 타이틀
-st.title("🚨 스마트 경고음 타임키퍼")
-st.caption("Streamlit Community Cloud 배포용 브라우저 기반 신호음 시스템")
+if "cleaning_logs" not in st.session_state:
+    st.session_state["cleaning_logs"] = [
+        {"날짜": "2026-10-18", "상태": "좋음", "메모": "칠판 및 창틀 깨끗함"},
+        {"날짜": "2026-10-19", "상태": "보통", "메모": "분리수거 확인 필요"}
+    ]
 
-# 웹 브라우저 오디오 권한 안내
-st.info("💡 **팁**: 브라우저 정책상 페이지 클릭 후 경고음이 정상 출력됩니다. 아래 설정을 변경한 뒤 시작하세요.")
-
-# 사이드바 - 규칙 및 옵션 설정
-st.sidebar.header("⚙️ 타이머 & 경고 규칙 설정")
-work_minutes = st.sidebar.number_input(
-    "집중 시간 (분)", min_value=1, max_value=120, value=25
-)
-break_minutes = st.sidebar.number_input(
-    "휴식 시간 (분)", min_value=1, max_value=60, value=5
-)
-target_sessions = st.sidebar.number_input(
-    "오늘의 목표 작업 완료 횟수", min_value=1, max_value=20, value=4
-)
-
-sound_option = st.sidebar.selectbox(
-    "작업 종료 시 경고음 종류",
-    ["일반 비프음 (Beep)", "강한 사이렌 (Siren)", "완료 멜로디 (Tone)"],
-)
-
-sound_type_map = {
-    "일반 비프음 (Beep)": "beep",
-    "강한 사이렌 (Siren)": "siren",
-    "완료 멜로디 (Tone)": "complete",
-}
-
+# ---------------------------------------------------------
+# Sidebar Navigation
+# ---------------------------------------------------------
+st.sidebar.title("🏫 정기운 선생님의 학급 앱")
 st.sidebar.markdown("---")
-if st.sidebar.button("🔊 경고음 테스트하기"):
-    play_sound(sound_type_map[sound_option])
-    st.sidebar.success("경고음이 테스트 출력되었습니다.")
+page = st.sidebar.radio(
+    "이동할 페이지를 선택하세요:",
+    ["📢 메인 대시보드", "💌 앱 소개 & 사용 설명", "🔔 경고음 관리", "📋 벌점 관리", "📮 익명 소통함", "🧹 청소 상태 체크"]
+)
 
-# 메인 카드 뷰
-col1, col2 = st.columns(2)
-with col1:
-    st.metric(
-        label="현재 진행 상태",
-        value="🔥 작업 중" if st.session_state.mode == "Work" else "☕ 휴식 중",
-    )
-with col2:
-    st.metric(
-        label="완료한 뽀모도로 세션",
-        value=f"{st.session_state.completed_sessions} / {target_sessions}",
-    )
+# ---------------------------------------------------------
+# PAGE 1: 메인 대시보드
+# ---------------------------------------------------------
+if page == "📢 메인 대시보드":
+    st.title("📱 실시간 학급 대시보드")
+    st.caption("핸드폰 알림처럼 학급의 주요 이슈와 현황을 한눈에 확인하세요!")
 
-st.markdown("---")
+    st.info("💡 **정기운 선생님, 환영합니다!** 오늘 학급에서 발생한 주요 현황 요약입니다.")
 
-# 타이머 제어 버튼 영역
-btn_col1, btn_col2, btn_col3 = st.columns(3)
+    st.markdown("### 📊 오늘의 학급 현황 요약")
+    
+    col1, col2, col3, col4 = st.columns(4)
 
-with btn_col1:
-    if st.button("▶️ 시작", use_container_width=True):
-        if not st.session_state.running:
-            st.session_state.running = True
-            if st.session_state.time_left <= 0:
-                st.session_state.time_left = (
-                    work_minutes * 60
-                    if st.session_state.mode == "Work"
-                    else break_minutes * 60
-                )
-
-with btn_col2:
-    if st.button("⏸️ 일시정지", use_container_width=True):
-        st.session_state.running = False
-
-with btn_col3:
-    if st.button("🔄 리셋", use_container_width=True):
-        st.session_state.running = False
-        st.session_state.mode = "Work"
-        st.session_state.time_left = work_minutes * 60
-
-# 타이머 시각화 및 루프 실행 처리
-timer_placeholder = st.empty()
-progress_placeholder = st.empty()
-
-# 타이머 카운트다운 로직
-if st.session_state.running and st.session_state.time_left > 0:
-    total_duration = (
-        work_minutes * 60
-        if st.session_state.mode == "Work"
-        else break_minutes * 60
-    )
-
-    mins, secs = divmod(st.session_state.time_left, 60)
-    timer_text = f"{mins:02d}:{secs:02d}"
-
-    # 시간 표시
-    timer_placeholder.markdown(
-        f"<h1 style='text-align: center; font-size: 80px; color: #FF4B4B;'>{timer_text}</h1>",
-        unsafe_allow_html=True,
-    )
-    progress = 1.0 - (st.session_state.time_left / total_duration)
-    progress_placeholder.progress(max(0.0, min(1.0, progress)))
-
-    time.sleep(1)
-    st.session_state.time_left -= 1
-    st.rerun()
-
-elif st.session_state.running and st.session_state.time_left <= 0:
-    # 규칙 위반/종료 조건 충족 시 경고음발생
-    st.session_state.running = False
-
-    if st.session_state.mode == "Work":
-        st.session_state.completed_sessions += 1
-        play_sound(sound_type_map[sound_option])
-        st.error("🚨 [규칙 1 위반/종료] 집중 시간이 종료되었습니다! 휴식을 취하세요.")
-
-        # 목표 미달 관련 규칙 체크
-        if st.session_state.completed_sessions < target_sessions:
-            st.warning(
-                f"⚠️ 아직 일일 목표({target_sessions}회)에 도달하지 못했습니다!"
-            )
-        else:
-            st.success("🎉 축하합니다! 오늘의 목표 세션을 모두 완료했습니다.")
-
-        # 모드 전환 (휴식 모드로)
-        st.session_state.mode = "Break"
-        st.session_state.time_left = break_minutes * 60
-    else:
-        play_sound("complete")
-        st.info("🔔 [규칙 2 종료] 휴식 시간이 끝났습니다! 다시 작업에 집중하세요.")
-        st.session_state.mode = "Work"
-        st.session_state.time_left = work_minutes * 60
-
-    st.rerun()
-
-else:
-    # 정지 상태일 때 디스플레이
-    display_seconds = (
-        st.session_state.time_left
-        if st.session_state.time_left > 0
-        else (
-            work_minutes * 60
-            if st.session_state.mode == "Work"
-            else break_minutes * 60
+    with col1:
+        st.metric(
+            label="🔔 오늘 발생 경고음", 
+            value=f"{st.session_state['alarm_count']} 회"
         )
+
+    with col2:
+        st.metric(
+            label="📮 안 읽은 익명 편지", 
+            value=f"{len(st.session_state['anonymous_letters'])} 개"
+        )
+
+    with col3:
+        st.metric(
+            label="⚠️ 벌점 수여 학생", 
+            value=f"{len(st.session_state['demerits'])} 명"
+        )
+
+    with col4:
+        status_color = "🟢" if st.session_state['cleaning_status'] == "좋음" else ("🟡" if st.session_state['cleaning_status'] == "보통" else "🔴")
+        st.metric(
+            label="🧹 오늘의 청소 상태", 
+            value=f"{status_color} {st.session_state['cleaning_status']}"
+        )
+
+    st.markdown("---")
+    st.subheader("🔔 실시간 학급 알림 피드")
+
+    # 벌점 학생 알림
+    if st.session_state["demerits"]:
+        for item in st.session_state["demerits"]:
+            st.warning(f"**[벌점 알림]** {item['학생 이름']} 학생이 '{item['사유']}' 사유로 벌점 **{item['벌점']}점**을 부여받았습니다. ({item['날짜']})")
+    else:
+        st.success("🎉 오늘 벌점을 받은 학생이 없습니다!")
+
+    # 익명 편지 알림
+    if st.session_state["anonymous_letters"]:
+        latest_letter = st.session_state["anonymous_letters"][-1]
+        st.info(f"**[익명 소통함]** 새로운 편지가 도착했습니다: \"{latest_letter['content'][:25]}...\" ({latest_letter['date']})")
+
+    # 청소 상태 알림
+    if st.session_state["cleaning_status"] == "나쁨":
+        st.error("**[청소 경고]** 현재 교실 청소 상태가 **'나쁨'**입니다. 점검이 필요합니다!")
+    elif st.session_state["cleaning_status"] == "좋음":
+        st.success("**[청소 완료]** 오늘 교실 청소 상태가 **'좋음'**으로 아주 쾌적합니다.")
+
+# ---------------------------------------------------------
+# PAGE 2: 앱 소개 및 사용 설명
+# ---------------------------------------------------------
+elif page == "💌 앱 소개 & 사용 설명":
+    st.title("💌 정기운 선생님께 드리는 글 & 앱 사용 설명")
+    
+    st.success("""
+    ### 👋 매일 학생들을 챙기느라 바쁘신 정기운 선생님! 
+
+    저희가 선생님을 위해 **선생님을 돕는 앱**을 만들었어요.  
+    이 앱을 선생님이 잘 이용해 주시기를 바래요. 
+
+    이 앱은 **총 4가지 기능**이 있고 선생님의 필요에 따라 페이지에 들어가서 사용하시면 돼요.  
+    잘 사용 하시길 바래요! ✨
+    """)
+
+    st.markdown("---")
+    st.subheader("📖 4가지 핵심 기능 및 사용 방법 안내")
+
+    st.markdown("""
+    1. **🔔 경고음 기능**
+       - 수업 시간 집중 유도나 경고가 필요할 때 버튼을 눌러 경고음 횟수를 누적 및 모니터링합니다.
+    2. **📋 벌점 제도 기능**
+       - 학생 이름, 사유, 벌점을 작성하면 실시간 대시보드와 관리에 즉각 반영됩니다.
+    3. **📮 익명 소통함 기능**
+       - 학생들의 고민 편지 수신 및 읽기 조회가 가능합니다.
+    4. **🧹 청소 상태 체크 기능**
+       - 매일 [좋음 / 보통 / 나쁨] 상태를 기록하여 교실 환경을 관리합니다.
+    """)
+
+# ---------------------------------------------------------
+# PAGE 3: 경고음 관리
+# ---------------------------------------------------------
+elif page == "🔔 경고음 관리":
+    st.title("🔔 경고음 컨트롤러")
+    st.write("수업 집중이나 알림이 필요할 때 사용하세요.")
+
+    st.subheader(f"오늘 누적 경고음 횟수: **{st.session_state['alarm_count']}회**")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🚨 경고음 울리기 (+1)", use_container_width=True):
+            st.session_state["alarm_count"] += 1
+            st.toast("🚨 경고음이 울렸습니다!")
+            st.rerun()
+
+    with col2:
+        if st.button("🔄 카운트 리셋 (0회)", use_container_width=True):
+            st.session_state["alarm_count"] = 0
+            st.toast("카운트가 초기화되었습니다.")
+            st.rerun()
+
+# ---------------------------------------------------------
+# PAGE 4: 벌점 관리
+# ---------------------------------------------------------
+elif page == "📋 벌점 관리":
+    st.title("📋 벌점 관리 시스템")
+
+    st.subheader("➕ 신규 벌점 부여")
+    with st.form("demerit_form", clear_on_submit=True):
+        student_name = st.text_input("학생 이름")
+        reason = st.text_area("벌점 부여 사유")
+        points = st.number_input("부여 벌점", min_value=1, max_value=10, value=1)
+        
+        submitted = st.form_submit_button("벌점 등록")
+
+        if submitted:
+            if student_name.strip() and reason.strip():
+                today_str = datetime.date.today().strftime("%Y-%m-%d")
+                st.session_state["demerits"].append({
+                    "학생 이름": student_name.strip(),
+                    "사유": reason.strip(),
+                    "벌점": points,
+                    "날짜": today_str
+                })
+                st.success(f"{student_name} 학생에게 벌점 {points}점이 등록되었습니다.")
+                st.rerun()
+            else:
+                st.error("학생 이름과 사유를 모두 작성해주세요.")
+
+    st.markdown("---")
+    st.subheader("📜 현재 벌점 부과 현황")
+    if st.session_state["demerits"]:
+        st.dataframe(st.session_state["demerits"], use_container_width=True)
+    else:
+        st.info("부과된 벌점 내역이 없습니다.")
+
+# ---------------------------------------------------------
+# PAGE 5: 익명 소통함
+# ---------------------------------------------------------
+elif page == "📮 익명 소통함":
+    st.title("📮 익명 고민 & 소통함")
+
+    st.subheader("✏️ 익명으로 편지 쓰기")
+    letter_text = st.text_area("선생님께 전달할 익명 메시지를 적어주세요.")
+    if st.button("편지 보낼게요 💌"):
+        if letter_text.strip():
+            today_str = datetime.date.today().strftime("%Y-%m-%d")
+            new_id = len(st.session_state["anonymous_letters"]) + 1
+            st.session_state["anonymous_letters"].append({
+                "id": new_id,
+                "content": letter_text.strip(),
+                "date": today_str
+            })
+            st.success("익명 편지가 선생님께 전달되었습니다!")
+            st.rerun()
+        else:
+            st.warning("내용을 입력해주세요.")
+
+    st.markdown("---")
+    st.subheader("📬 도착한 익명 편지 목록")
+    if st.session_state["anonymous_letters"]:
+        for letter in reversed(st.session_state["anonymous_letters"]):
+            with st.expander(f"✉️ 편지 #{letter['id']} ({letter['date']})"):
+                st.write(letter["content"])
+    else:
+        st.info("도착한 익명 편지가 없습니다.")
+
+# ---------------------------------------------------------
+# PAGE 6: 청소 상태 체크
+# ---------------------------------------------------------
+elif page == "🧹 청소 상태 체크":
+    st.title("🧹 오늘의 학급 청소 상태 점검")
+
+    st.subheader("현시점 청소 상태 평가")
+    status = st.select_slider(
+        "오늘의 교실 청소 상태를 선택해주세요:",
+        options=["나쁨", "보통", "좋음"],
+        value=st.session_state["cleaning_status"]
     )
-    mins, secs = divmod(display_seconds, 60)
-    timer_placeholder.markdown(
-        f"<h1 style='text-align: center; font-size: 80px;'>{mins:02d}:{secs:02d}</h1>",
-        unsafe_allow_html=True,
-    )
-    progress_placeholder.progress(0.0)
+    
+    note = st.text_input("청소 상태 관련 메모")
+
+    if st.button("청소 상태 저장하기"):
+        st.session_state["cleaning_status"] = status
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
+        st.session_state["cleaning_logs"].append({
+            "날짜": today_str,
+            "상태": status,
+            "메모": note.strip() if note.strip() else "특이사항 없음"
+        })
+        st.success(f"오늘의 청소 상태가 **'{status}'**(으)로 저장되었습니다.")
+        st.rerun()
+
+    st.markdown("---")
+    st.subheader("📜 청소 기록 이력")
+    st.dataframe(st.session_state["cleaning_logs"], use_container_width=True)
