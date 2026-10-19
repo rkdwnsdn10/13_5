@@ -1,155 +1,237 @@
-import datetime
+import time
 import streamlit as st
+import streamlit.components.v1 as components
 
-# 페이지 기본 설정
+# 페이지 설정
 st.set_page_config(
-    page_title="정기운 선생님 통합 대시보드",
-    page_icon="🔔",
-    layout="centered",
-    initial_sidebar_state="collapsed",
+    page_title="스마트 작업 & 학습 타임키퍼",
+    page_icon="🚨",
+    layout="centered"
 )
 
-# 모바일 알림판 느낌을 주기 위한 커스텀 CSS 스타일 적용
-st.markdown(
+
+# WEB AUDIO API 기반 브라우저 경고음 재생 함수
+def play_sound(sound_type="beep"):
+    """Streamlit Cloud에서 100% 안정적으로 작동하는 브라우저 오디오 합성 경고음 generator"""
+    js_code = f"""
+    <script>
+    (function() {{
+        try {{
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            const type = "{sound_type}";
+            
+            if (type === "beep") {{
+                // 일반 경고음 (Short Double Beep)
+                [0, 0.2].forEach(delay => {{
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime + delay); // A5
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.15);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + delay);
+                    osc.stop(ctx.currentTime + delay + 0.15);
+                }});
+            }} else if (type === "siren") {{
+                // 강한 경고음 (Siren Alarm)
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                
+                // Frequency modulation for siren effect
+                osc.frequency.setValueAtTime(400, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.3);
+                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.6);
+                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.9);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 1.0);
+            }} else if (type === "complete") {{
+                // 성공 / 완료 알림음 (Chime Tone)
+                const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
+                freqs.forEach((freq, idx) => {{
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + (idx * 0.12));
+                    gain.gain.setValueAtTime(0.2, ctx.currentTime + (idx * 0.12));
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (idx * 0.12) + 0.3);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + (idx * 0.12));
+                    osc.stop(ctx.currentTime + (idx * 0.12) + 0.3);
+                }});
+            }}
+        }} catch(e) {{
+            console.error("Audio Playback Error:", e);
+        }}
+    }})();
+    </script>
     """
-    <style>
-    .main-header {
-        font-size: 24px;
-        font-weight: bold;
-        color: #1E3A8A;
-        margin-bottom: 5px;
-    }
-    .sub-header {
-        font-size: 14px;
-        color: #6B7280;
-        margin-bottom: 25px;
-    }
-    .notification-card {
-        background-color: #F3F4F6;
-        border-left: 5px solid #3B82F6;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-    }
-    .notification-title {
-        font-weight: bold;
-        color: #1F2937;
-        font-size: 15px;
-    }
-    .notification-time {
-        font-size: 12px;
-        color: #9CA3AF;
-        margin-top: 4px;
-    }
-    .notification-content {
-        font-size: 14px;
-        color: #4B5563;
-        margin-top: 6px;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
+    components.html(js_code, height=0, width=0)
+
+
+# 세션 상태 초기화
+if "running" not in st.session_state:
+    st.session_state.running = False
+if "time_left" not in st.session_state:
+    st.session_state.time_left = 0
+if "mode" not in st.session_state:
+    st.session_state.mode = "Work"  # Work or Break
+if "completed_sessions" not in st.session_state:
+    st.session_state.completed_sessions = 0
+
+# UI 타이틀
+st.title("🚨 스마트 경고음 타임키퍼")
+st.caption("Streamlit Community Cloud 배포용 브라우저 기반 신호음 시스템")
+
+# 웹 브라우저 오디오 권한 안내
+st.info("💡 **팁**: 브라우저 정책상 페이지 클릭 후 경고음이 정상 출력됩니다. 아래 설정을 변경한 뒤 시작하세요.")
+
+# 사이드바 - 규칙 및 옵션 설정
+st.sidebar.header("⚙️ 타이머 & 경고 규칙 설정")
+work_minutes = st.sidebar.number_input(
+    "집중 시간 (분)", min_value=1, max_value=120, value=25
+)
+break_minutes = st.sidebar.number_input(
+    "휴식 시간 (분)", min_value=1, max_value=60, value=5
+)
+target_sessions = st.sidebar.number_input(
+    "오늘의 목표 작업 완료 횟수", min_value=1, max_value=20, value=4
 )
 
-# 상단 타이틀 영역
-st.markdown(
-    '<div class="main-header">🔔 정기운 선생님 알림 & 대시보드</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    f'<div class="sub-header">실시간 시스템 알림 및 사용량 모니터링 (기준 날짜: {datetime.date.today().strftime("%Y-%m-%d")})</div>',
-    unsafe_allow_html=True,
+sound_option = st.sidebar.selectbox(
+    "작업 종료 시 경고음 종류",
+    ["일반 비프음 (Beep)", "강한 사이렌 (Siren)", "완료 멜로디 (Tone)"],
 )
 
-# 예외 처리 블록 시작
-try:
-    # 1. 상단 요약 지표 (사용 횟수 및 상태)
-    st.markdown("### 📊 주요 사용량 요약")
-    col1, col2, col3 = st.columns(3)
+sound_type_map = {
+    "일반 비프음 (Beep)": "beep",
+    "강한 사이렌 (Siren)": "siren",
+    "완료 멜로디 (Tone)": "complete",
+}
 
-    with col1:
-        st.metric(
-            label="오늘 출석체크 조회", value="42회", delta="+5회 (어제 대비)"
-        )
+st.sidebar.markdown("---")
+if st.sidebar.button("🔊 경고음 테스트하기"):
+    play_sound(sound_type_map[sound_option])
+    st.sidebar.success("경고음이 테스트 출력되었습니다.")
 
-    with col2:
-        st.metric(label="AI 학습 자료 생성", value="12회", delta="2회 대기중")
+# 메인 카드 뷰
+col1, col2 = st.columns(2)
+with col1:
+    st.metric(
+        label="현재 진행 상태",
+        value="🔥 작업 중" if st.session_state.mode == "Work" else "☕ 휴식 중",
+    )
+with col2:
+    st.metric(
+        label="완료한 뽀모도로 세션",
+        value=f"{st.session_state.completed_sessions} / {target_sessions}",
+    )
 
-    with col3:
-        st.metric(label="학부모 상담 알림", value="5건", delta="-1건")
+st.markdown("---")
 
-    st.markdown("---")
+# 타이머 제어 버튼 영역
+btn_col1, btn_col2, btn_col3 = st.columns(3)
 
-    # 2. 스마트폰 알림 미리보기 보드 (메인 기능)
-    st.markdown("### 📱 스마트폰 알림 피드 (미리보기 보드)")
-    st.markdown(
-        "<p style='font-size: 13px; color: #6B7280;'>기능 페이지로 이동하지 않고 최신 알림 내용을 바로 확인할 수 있습니다.</p>",
+with btn_col1:
+    if st.button("▶️ 시작", use_container_width=True):
+        if not st.session_state.running:
+            st.session_state.running = True
+            if st.session_state.time_left <= 0:
+                st.session_state.time_left = (
+                    work_minutes * 60
+                    if st.session_state.mode == "Work"
+                    else break_minutes * 60
+                )
+
+with btn_col2:
+    if st.button("⏸️ 일시정지", use_container_width=True):
+        st.session_state.running = False
+
+with btn_col3:
+    if st.button("🔄 리셋", use_container_width=True):
+        st.session_state.running = False
+        st.session_state.mode = "Work"
+        st.session_state.time_left = work_minutes * 60
+
+# 타이머 시각화 및 루프 실행 처리
+timer_placeholder = st.empty()
+progress_placeholder = st.empty()
+
+# 타이머 카운트다운 로직
+if st.session_state.running and st.session_state.time_left > 0:
+    total_duration = (
+        work_minutes * 60
+        if st.session_state.mode == "Work"
+        else break_minutes * 60
+    )
+
+    mins, secs = divmod(st.session_state.time_left, 60)
+    timer_text = f"{mins:02d}:{secs:02d}"
+
+    # 시간 표시
+    timer_placeholder.markdown(
+        f"<h1 style='text-align: center; font-size: 80px; color: #FF4B4B;'>{timer_text}</h1>",
         unsafe_allow_html=True,
     )
+    progress = 1.0 - (st.session_state.time_left / total_duration)
+    progress_placeholder.progress(max(0.0, min(1.0, progress)))
 
-    # 알림 데이터 리스트 (가상의 데이터)
-    notifications = [
-        {
-            "title": "🚨 [긴급] 학부모 상담 요청",
-            "time": "10분 전",
-            "content": (
-                "김민수 학생 학부모님께서 오후 4시 전화 상담을 요청하셨습니다."
-            ),
-        },
-        {
-            "title": "📌 [공지] 과제 제출 마감 알림",
-            "time": "1시간 전",
-            "content": (
-                "3학년 2반 수학 수행평가 과제 제출 마감이 내일 자정으로"
-                " 설정되었습니다."
-            ),
-        },
-        {
-            "title": "✨ [시스템] AI 문제 생성 완료",
-            "time": "3시간 전",
-            "content": (
-                "요청하신 국어 영역 단원 평가 문제 10문항이 성공적으로"
-                " 생성되었습니다."
-            ),
-        },
-        {
-            "title": "☕ [휴식] 리프레시 알림",
-            "time": "5시간 전",
-            "content": (
-                "연속으로 2시간 동안 화면을 보고 계십니다. 잠시 눈의 피로를"
-                " 풀어주세요."
-            ),
-        },
-    ]
+    time.sleep(1)
+    st.session_state.time_left -= 1
+    st.rerun()
 
-    # 알림 카드 렌더링
-    for noti in notifications:
-        st.markdown(
-            f"""
-            <div class="notification-card">
-                <div class="notification-title">{noti['title']}</div>
-                <div class="notification-time">{noti['time']}</div>
-                <div class="notification-content">{noti['content']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+elif st.session_state.running and st.session_state.time_left <= 0:
+    # 규칙 위반/종료 조건 충족 시 경고음발생
+    st.session_state.running = False
+
+    if st.session_state.mode == "Work":
+        st.session_state.completed_sessions += 1
+        play_sound(sound_type_map[sound_option])
+        st.error("🚨 [규칙 1 위반/종료] 집중 시간이 종료되었습니다! 휴식을 취하세요.")
+
+        # 목표 미달 관련 규칙 체크
+        if st.session_state.completed_sessions < target_sessions:
+            st.warning(
+                f"⚠️ 아직 일일 목표({target_sessions}회)에 도달하지 못했습니다!"
+            )
+        else:
+            st.success("🎉 축하합니다! 오늘의 목표 세션을 모두 완료했습니다.")
+
+        # 모드 전환 (휴식 모드로)
+        st.session_state.mode = "Break"
+        st.session_state.time_left = break_minutes * 60
+    else:
+        play_sound("complete")
+        st.info("🔔 [규칙 2 종료] 휴식 시간이 끝났습니다! 다시 작업에 집중하세요.")
+        st.session_state.mode = "Work"
+        st.session_state.time_left = work_minutes * 60
+
+    st.rerun()
+
+else:
+    # 정지 상태일 때 디스플레이
+    display_seconds = (
+        st.session_state.time_left
+        if st.session_state.time_left > 0
+        else (
+            work_minutes * 60
+            if st.session_state.mode == "Work"
+            else break_minutes * 60
         )
-
-    # 3. 추가 부가 정보 (사용량 추이 그래프)
-    st.markdown("### 📈 주간 기능별 사용 횟수 통계")
-    chart_data = {"월": 15, "화": 22, "수": 30, "목": 25, "금": 42}
-    st.bar_chart(chart_data)
-
-except Exception as e:
-    st.error(
-        f"앱을 실행하는 동안 오류가 발생했습니다. 관리자에게 문의해주세요. (오류 내용:"
-        f" {e})"
     )
-
-# 하단 푸터
-st.markdown("---")
-st.markdown(
-    "<p style='text-align: center; color: #9CA3AF; font-size: 12px;'>©"
-    " 2026 Jeong Gi-un Teacher Dashboard. All rights reserved.</p>",
-    unsafe_allow_html=True,
-)
+    mins, secs = divmod(display_seconds, 60)
+    timer_placeholder.markdown(
+        f"<h1 style='text-align: center; font-size: 80px;'>{mins:02d}:{secs:02d}</h1>",
+        unsafe_allow_html=True,
+    )
+    progress_placeholder.progress(0.0)
