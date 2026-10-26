@@ -1,18 +1,18 @@
-import time
+import re
 import streamlit as st
 import streamlit.components.v1 as components
 
 # 페이지 설정
 st.set_page_config(
-    page_title="스마트 작업 & 학습 타임키퍼",
+    page_title="실시간 규칙 위반 감지 & 경고음 시스템",
     page_icon="🚨",
     layout="centered"
 )
 
 
-# WEB AUDIO API 기반 브라우저 경고음 재생 함수
+# Web Audio API 기반 오디오 생성 함수 (Streamlit Cloud 호환 100%)
 def play_sound(sound_type="beep"):
-    """Streamlit Cloud에서 100% 안정적으로 작동하는 브라우저 오디오 합성 경고음 generator"""
+    """브라우저 단에서 오디오를 합성하여 경고음을 재생하는 스크립트"""
     js_code = f"""
     <script>
     (function() {{
@@ -20,58 +20,54 @@ def play_sound(sound_type="beep"):
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
-            
             const type = "{sound_type}";
             
-            if (type === "beep") {{
-                // 일반 경고음 (Short Double Beep)
-                [0, 0.2].forEach(delay => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime + delay); // A5
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.15);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + delay);
-                    osc.stop(ctx.currentTime + delay + 0.15);
-                }});
-            }} else if (type === "siren") {{
-                // 강한 경고음 (Siren Alarm)
+            if (type === "siren") {{
+                // 강한 사이렌 경고음 (금지어 위반)
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.type = 'sawtooth';
                 gain.gain.setValueAtTime(0.2, ctx.currentTime);
                 
-                // Frequency modulation for siren effect
                 osc.frequency.setValueAtTime(400, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.3);
-                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.6);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.9);
+                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.2);
+                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.4);
+                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.6);
                 
                 osc.connect(gain);
                 gain.connect(ctx.destination);
                 osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 1.0);
-            }} else if (type === "complete") {{
-                // 성공 / 완료 알림음 (Chime Tone)
-                const freqs = [523.25, 659.25, 783.99]; // C5, E5, G5
-                freqs.forEach((freq, idx) => {{
+                osc.stop(ctx.currentTime + 0.7);
+            }} else if (type === "beep") {{
+                // 비프음 (글자수 제한 위반)
+                [0, 0.15].forEach(delay => {{
                     const osc = ctx.createOscillator();
                     const gain = ctx.createGain();
                     osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, ctx.currentTime + (idx * 0.12));
-                    gain.gain.setValueAtTime(0.2, ctx.currentTime + (idx * 0.12));
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + (idx * 0.12) + 0.3);
+                    osc.frequency.setValueAtTime(800, ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.1);
                     osc.connect(gain);
                     gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + (idx * 0.12));
-                    osc.stop(ctx.currentTime + (idx * 0.12) + 0.3);
+                    osc.start(ctx.currentTime + delay);
+                    osc.stop(ctx.currentTime + delay + 0.1);
                 }});
+            }} else if (type === "warning") {{
+                // 연속 특수문자 알림음
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(ctx.currentTime);
+                osc.stop(ctx.currentTime + 0.3);
             }}
         }} catch(e) {{
-            console.error("Audio Playback Error:", e);
+            console.error("Audio playback error:", e);
         }}
     }})();
     </script>
@@ -79,159 +75,85 @@ def play_sound(sound_type="beep"):
     components.html(js_code, height=0, width=0)
 
 
-# 세션 상태 초기화
-if "running" not in st.session_state:
-    st.session_state.running = False
-if "time_left" not in st.session_state:
-    st.session_state.time_left = 0
-if "mode" not in st.session_state:
-    st.session_state.mode = "Work"  # Work or Break
-if "completed_sessions" not in st.session_state:
-    st.session_state.completed_sessions = 0
+# 메인 타이틀
+st.title("🚨 실시간 규칙 위반 검증기")
+st.caption("텍스트 입력 시 설정된 규칙을 어기면 즉시 경고음이 울립니다.")
 
-# UI 타이틀
-st.title("🚨 스마트 경고음 타임키퍼")
-st.caption("Streamlit Community Cloud 배포용 브라우저 기반 신호음 시스템")
-
-# 웹 브라우저 오디오 권한 안내
-st.info("💡 **팁**: 브라우저 정책상 페이지 클릭 후 경고음이 정상 출력됩니다. 아래 설정을 변경한 뒤 시작하세요.")
-
-# 사이드바 - 규칙 및 옵션 설정
-st.sidebar.header("⚙️ 타이머 & 경고 규칙 설정")
-work_minutes = st.sidebar.number_input(
-    "집중 시간 (분)", min_value=1, max_value=120, value=25
-)
-break_minutes = st.sidebar.number_input(
-    "휴식 시간 (분)", min_value=1, max_value=60, value=5
-)
-target_sessions = st.sidebar.number_input(
-    "오늘의 목표 작업 완료 횟수", min_value=1, max_value=20, value=4
+st.info(
+    "💡 **알림**: 웹 브라우저 정책상 화면을 한 번 이상 클릭한 후부터 경고음이 정상 작동합니다."
 )
 
-sound_option = st.sidebar.selectbox(
-    "작업 종료 시 경고음 종류",
-    ["일반 비프음 (Beep)", "강한 사이렌 (Siren)", "완료 멜로디 (Tone)"],
+# 사이드바 설정 영역
+st.sidebar.header("⚙️ 위반 검증 규칙 설정")
+
+# 규칙 1: 금지어 설정
+banned_words_input = st.sidebar.text_input(
+    "1. 금지어 목록 (쉼표로 구분)", value="비밀, 오류, 금지, 스팸"
+)
+banned_words = [
+    w.strip() for w in banned_words_input.split(",") if w.strip()
+]
+
+# 규칙 2: 글자 수 범위 설정
+min_len, max_len = st.sidebar.slider(
+    "2. 허용 글자 수 범위", min_value=5, max_value=200, value=(10, 100)
 )
 
-sound_type_map = {
-    "일반 비프음 (Beep)": "beep",
-    "강한 사이렌 (Siren)": "siren",
-    "완료 멜로디 (Tone)": "complete",
-}
+# 규칙 3: 연속 특수문자 금지 여부
+block_special_chars = st.sidebar.checkbox(
+    "3. 특수문자 3회 이상 연속 입력 금지", value=True
+)
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🔊 경고음 테스트하기"):
-    play_sound(sound_type_map[sound_option])
-    st.sidebar.success("경고음이 테스트 출력되었습니다.")
+if st.sidebar.button("🔊 경고음 테스트 (사이렌)"):
+    play_sound("siren")
+    st.sidebar.success("테스트 소리가 작동했습니다.")
 
-# 메인 카드 뷰
-col1, col2 = st.columns(2)
-with col1:
-    st.metric(
-        label="현재 진행 상태",
-        value="🔥 작업 중" if st.session_state.mode == "Work" else "☕ 휴식 중",
-    )
-with col2:
-    st.metric(
-        label="완료한 뽀모도로 세션",
-        value=f"{st.session_state.completed_sessions} / {target_sessions}",
-    )
+# 입력 영역
+st.subheader("📝 검증할 문장 입력")
+user_text = st.text_area(
+    "아래 입력창에 텍스트를 작성하세요:",
+    height=150,
+    placeholder="규칙에 맞게 글을 입력해 보세요...",
+)
 
-st.markdown("---")
+current_len = len(user_text)
+st.caption(f"현재 글자 수: **{current_len}** 자")
 
-# 타이머 제어 버튼 영역
-btn_col1, btn_col2, btn_col3 = st.columns(3)
+# 위반 검증 로직
+if st.button("🔍 규칙 검증하기", type="primary"):
+    violations = []
 
-with btn_col1:
-    if st.button("▶️ 시작", use_container_width=True):
-        if not st.session_state.running:
-            st.session_state.running = True
-            if st.session_state.time_left <= 0:
-                st.session_state.time_left = (
-                    work_minutes * 60
-                    if st.session_state.mode == "Work"
-                    else break_minutes * 60
-                )
-
-with btn_col2:
-    if st.button("⏸️ 일시정지", use_container_width=True):
-        st.session_state.running = False
-
-with btn_col3:
-    if st.button("🔄 리셋", use_container_width=True):
-        st.session_state.running = False
-        st.session_state.mode = "Work"
-        st.session_state.time_left = work_minutes * 60
-
-# 타이머 시각화 및 루프 실행 처리
-timer_placeholder = st.empty()
-progress_placeholder = st.empty()
-
-# 타이머 카운트다운 로직
-if st.session_state.running and st.session_state.time_left > 0:
-    total_duration = (
-        work_minutes * 60
-        if st.session_state.mode == "Work"
-        else break_minutes * 60
-    )
-
-    mins, secs = divmod(st.session_state.time_left, 60)
-    timer_text = f"{mins:02d}:{secs:02d}"
-
-    # 시간 표시
-    timer_placeholder.markdown(
-        f"<h1 style='text-align: center; font-size: 80px; color: #FF4B4B;'>{timer_text}</h1>",
-        unsafe_allow_html=True,
-    )
-    progress = 1.0 - (st.session_state.time_left / total_duration)
-    progress_placeholder.progress(max(0.0, min(1.0, progress)))
-
-    time.sleep(1)
-    st.session_state.time_left -= 1
-    st.rerun()
-
-elif st.session_state.running and st.session_state.time_left <= 0:
-    # 규칙 위반/종료 조건 충족 시 경고음발생
-    st.session_state.running = False
-
-    if st.session_state.mode == "Work":
-        st.session_state.completed_sessions += 1
-        play_sound(sound_type_map[sound_option])
-        st.error("🚨 [규칙 1 위반/종료] 집중 시간이 종료되었습니다! 휴식을 취하세요.")
-
-        # 목표 미달 관련 규칙 체크
-        if st.session_state.completed_sessions < target_sessions:
-            st.warning(
-                f"⚠️ 아직 일일 목표({target_sessions}회)에 도달하지 못했습니다!"
-            )
-        else:
-            st.success("🎉 축하합니다! 오늘의 목표 세션을 모두 완료했습니다.")
-
-        # 모드 전환 (휴식 모드로)
-        st.session_state.mode = "Break"
-        st.session_state.time_left = break_minutes * 60
+    if not user_text.strip():
+        st.warning("텍스트를 입력한 후 검증해 주세요.")
     else:
-        play_sound("complete")
-        st.info("🔔 [규칙 2 종료] 휴식 시간이 끝났습니다! 다시 작업에 집중하세요.")
-        st.session_state.mode = "Work"
-        st.session_state.time_left = work_minutes * 60
+        # 1. 금지어 포함 여부 검사 (우선순위 1)
+        found_banned = [word for word in banned_words if word in user_text]
+        if found_banned:
+            violations.append(
+                f"🚨 **[규칙 1 위반]** 금지어가 포함되어 있습니다: `{', '.join(found_banned)}`"
+            )
+            play_sound("siren")
 
-    st.rerun()
+        # 2. 글자 수 제한 검사
+        elif current_len < min_len or current_len > max_len:
+            violations.append(
+                f"⚠️ **[규칙 2 위반]** 글자 수가 범위를 벗어났습니다. (현재 {current_len}자 / 허용 {min_len}~{max_len}자)"
+            )
+            play_sound("beep")
 
-else:
-    # 정지 상태일 때 디스플레이
-    display_seconds = (
-        st.session_state.time_left
-        if st.session_state.time_left > 0
-        else (
-            work_minutes * 60
-            if st.session_state.mode == "Work"
-            else break_minutes * 60
-        )
-    )
-    mins, secs = divmod(display_seconds, 60)
-    timer_placeholder.markdown(
-        f"<h1 style='text-align: center; font-size: 80px;'>{mins:02d}:{secs:02d}</h1>",
-        unsafe_allow_html=True,
-    )
-    progress_placeholder.progress(0.0)
+        # 3. 연속 특수문자 검사
+        elif block_special_chars and re.search(
+            r"[^\w\s]{3,}", user_text, re.UNICODE
+        ):
+            violations.append(
+                "⚡ **[규칙 3 위반]** 특수문자가 3회 이상 연속으로 입력되었습니다."
+            )
+            play_sound("warning")
+
+        # 결과 출력
+        if violations:
+            for v in violations:
+                st.error(v)
+        else:
+            st.success("✅ 모든 규칙을 통과했습니다! 위반 사항이 없습니다.")
