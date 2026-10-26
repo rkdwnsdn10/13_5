@@ -2,83 +2,223 @@ import streamlit as st
 import datetime
 
 # ---------------------------------------------------------
-# Page Configuration
+# Page Configuration & CSS Styling
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="정기운 선생님을 위한 Smart Classroom",
+    page_title="정기운 선생님을 위한 Smart Classroom Dashboard",
     page_icon="🏫",
     layout="wide"
 )
 
-# ---------------------------------------------------------
-# 화면 상단 탭 구성 (사이드바 이동 제거)
-# ---------------------------------------------------------
-tab1, tab2 = st.tabs(["📢 실시간 메인 대시보드", "💌 정기운 선생님께 드리는 글 & 앱 사용 설명"])
+# 이미지 스타일(네이비/블루 대시보드 톤) 맞춤 CSS 적용
+st.markdown("""
+<style>
+    /* 배경색 및 기본 폰트 설정 */
+    .main {
+        background-color: #f4f7fa;
+    }
+    
+    /* 대시보드 상단 헤더 타이틀 */
+    .dash-header {
+        text-align: center;
+        color: #1a2b4c;
+        font-weight: 800;
+        font-size: 2.2rem;
+        margin-bottom: 5px;
+    }
+    .dash-sub {
+        text-align: center;
+        color: #5a6b82;
+        font-size: 0.95rem;
+        margin-bottom: 25px;
+    }
+
+    /* 상단 네이비 카드 스타일 */
+    .top-card {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 18px 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+        text-align: left;
+    }
+    .top-card-label {
+        font-size: 0.9rem;
+        color: #bfdbfe;
+        font-weight: 600;
+        margin-bottom: 5px;
+    }
+    .top-card-val {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #ffffff;
+    }
+
+    /* 하단 대시보드 섹션 카드 박스 */
+    .content-box {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        margin-bottom: 20px;
+        height: 100%;
+    }
+    .box-title {
+        color: #1e293b;
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #3b82f6;
+        padding-bottom: 6px;
+        display: inline-block;
+    }
+
+    /* 알림 리스트 아이템 */
+    .alert-item-warning {
+        background-color: #fef3c7;
+        color: #92400e;
+        padding: 12px 15px;
+        border-radius: 8px;
+        border-left: 5px solid #f59e0b;
+        margin-bottom: 10px;
+        font-size: 0.95rem;
+    }
+    .alert-item-danger {
+        background-color: #fee2e2;
+        color: #991b1b;
+        padding: 12px 15px;
+        border-radius: 8px;
+        border-left: 5px solid #ef4444;
+        margin-bottom: 10px;
+        font-size: 0.95rem;
+    }
+    .alert-item-info {
+        background-color: #e0f2fe;
+        color: #075985;
+        padding: 12px 15px;
+        border-radius: 8px;
+        border-left: 5px solid #0284c7;
+        margin-bottom: 10px;
+        font-size: 0.95rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# TAB 1: 메인 대시보드 (스마트폰 알림 센터 콘셉트)
+# 화면 상단 탭 구성 (사이드바 메뉴 없음)
+# ---------------------------------------------------------
+tab1, tab2 = st.tabs(["📊 대시보드 메인", "💌 앱 소개 & 사용 방법"])
+
+# ---------------------------------------------------------
+# TAB 1: 고급 네이비 스타일 메인 대시보드
 # ---------------------------------------------------------
 with tab1:
-    st.title("📱 실시간 학급 대시보드")
-    st.caption("2학년 3반 · " + datetime.date.today().strftime("%Y년 %m월 %d일") + " · 핸드폰 알림 한눈에 확인하기")
+    st.markdown('<div class="dash-header">대 시 보 드</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="dash-sub">2학년 3반 · {datetime.date.today().strftime("%Y년 %m월 %d일")} 현재 · 정기운 선생님을 위한 실시간 통합 알림센터</div>', unsafe_allow_html=True)
 
-    st.info("💡 **정기운 선생님, 환영합니다!** 앱에 직접 들어오지 않아도 한눈에 알 수 있는 학급 현황 알림입니다.")
-
-    st.markdown("### 📊 오늘의 학급 현황 요약")
-    
+    # 1. 상단 블루 요약 카운터 (이미지의 상단 네이비 바 느낌 적용)
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric(
-            label="🔔 오늘 발생 경고음", 
-            value="3 회",
-            delta="주의 요망"
-        )
+        st.markdown("""
+        <div class="top-card">
+            <div class="top-card-label">🔔 오늘 발생 경고음</div>
+            <div class="top-card-val">3 회</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col2:
-        st.metric(
-            label="📮 익명 편지 도착", 
-            value="3 개",
-            delta="+3 new"
-        )
+        st.markdown("""
+        <div class="top-card">
+            <div class="top-card-label">📮 도착한 익명 편지</div>
+            <div class="top-card-val">3 개</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col3:
-        st.metric(
-            label="⚠️ 벌점 수여 학생", 
-            value="2 명"
-        )
+        st.markdown("""
+        <div class="top-card">
+            <div class="top-card-label">⚠️ 벌점 수여 학생</div>
+            <div class="top-card-val">2 명</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with col4:
-        st.metric(
-            label="🧹 청소 필요 구역", 
-            value="6 곳",
-            delta="완료율 0%",
-            delta_color="inverse"
-        )
+        st.markdown("""
+        <div class="top-card">
+            <div class="top-card-label">🧹 청소 필요 구역</div>
+            <div class="top-card-val">6 곳</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.subheader("🔔 실시간 학급 알림 피드")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # 1. 청소 알림 (이전 캡처 이미지 내용 일치)
-    st.warning("🔔 **[청소 알림]** 교실 바닥, 책상 주변, 쓰레기통, 분리수거, 칠판·교탁, 창가·사물함 구역을 확인해 주세요.")
+    # 2. 하단 2열 구획 (왼쪽: 알림 및 현황 리스트 / 오른쪽: 학급 관리 현황)
+    left_col, right_col = st.columns([1.2, 0.8])
 
-    # 2. 벌점 학생 알림
-    st.error("⚠️ **[벌점 알림]** 김철수 학생이 '수업 시간 지각' 사유로 벌점 **2점**을 부여받았습니다.")
-    st.error("⚠️ **[벌점 알림]** 이영희 학생이 '청소 시간 무단 탈주' 사유로 벌점 **3점**을 부여받았습니다.")
+    with left_col:
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown('<div class="box-title">📢 실시간 학급 주요 알림</div>', unsafe_allow_html=True)
+        
+        # 청소 알림
+        st.markdown("""
+        <div class="alert-item-warning">
+            <b>🧹 청소 상태 알림</b><br>
+            교실 바닥, 책상 주변, 쓰레기통, 분리수거, 칠판·교탁, 창가·사물함 구역 확인이 필요합니다. (완료율 0%)
+        </div>
+        """, unsafe_allow_html=True)
 
-    # 3. 익명 편지 알림
-    st.info("📮 **[익명 소통함]** 새로운 익명 편지가 3개 도착했습니다: \"선생님 항상 수업 재미있게 해주셔서 감사합니다!...\"")
+        # 벌점 알림
+        st.markdown("""
+        <div class="alert-item-danger">
+            <b>⚠️ 벌점 수여 알림</b><br>
+            <b>김철수</b> 학생 (사유: 수업 시간 지각 / 벌점 2점)<br>
+            <b>이영희</b> 학생 (사유: 청소 시간 무단 탈주 / 벌점 3점)
+        </div>
+        """, unsafe_allow_html=True)
 
-    # 4. 경고음 알림
-    st.warning("🚨 **[경고음 알림]** 오늘 수업 시간 중 집중 유도 경고음이 총 **3회** 울렸습니다.")
+        # 익명 소통함 알림
+        st.markdown("""
+        <div class="alert-item-info">
+            <b>📮 익명 편지 알림</b><br>
+            새로운 편지 3건 도착: "선생님 항상 수업 재미있게 해주셔서 감사합니다!..."
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 경고음 알림
+        st.markdown("""
+        <div class="alert-item-warning">
+            <b>🔔 경고음 발생 알림</b><br>
+            오늘 수업 시간 집중 유도 경고음이 총 <b>3회</b> 누적되었습니다.
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with right_col:
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown('<div class="box-title">📋 4대 학급 기능 항목 요약</div>', unsafe_allow_html=True)
+
+        # 4가지 기능 요약 차트/표 느낌의 리스트
+        st.markdown("""
+        * **🔔 경고음 카운트**: `3회` (주의)
+        * **⚠️ 벌점 관리**: `2명` 등록 완료
+        * **📮 익명 편지**: `3건` 미확인
+        * **🧹 청소 평가**: `6구역` 점검 필요
+        """)
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+        st.caption("💡 각 기능의 상세 내역은 알림 피드 및 앱 소개 탭을 참고하세요.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# TAB 2: 앱 소개 및 사용 설명 (요청하신 정확한 문구 포함)
+# TAB 2: 정기운 선생님 앱 소개 및 사용 설명
 # ---------------------------------------------------------
 with tab2:
-    st.title("💌 정기운 선생님께 드리는 글 & 앱 사용 설명")
+    st.markdown('<div class="content-box">', unsafe_allow_html=True)
+    st.markdown('<div class="box-title">💌 정기운 선생님께 드리는 글</div>', unsafe_allow_html=True)
     
-    # 요청하신 문구 적용
     st.success("""
     ### 👋 매일 학생들을 챙기느라 바쁘신 정기운 선생님!
 
@@ -89,12 +229,17 @@ with tab2:
     잘 사용 하시길 바래요. ✨
     """)
 
-    st.markdown("---")
-    st.subheader("📖 학급 돕기 앱의 4가지 주요 기능 안내")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="box-title">📖 앱의 4가지 주요 기능 및 활용법</div>', unsafe_allow_html=True)
 
     st.markdown("""
-    1. **🔔 경고음 기능**: 수업 시간 집중 유도 및 주의가 필요할 때 사용한 경고음 발생 횟수를 확인합니다.
-    2. **📋 벌점제도 기능**: 벌점을 받은 학생이 몇 명이고 어떤 학생인지 사유와 함께 한눈에 모니터링합니다.
-    3. **📮 익명소통함 기능**: 학생들이 보낸 익명 편지가 총 몇 개 왔는지 확인하고 마음을 주고받습니다.
-    4. **🧹 청소 상태 체크 기능**: 교실 청소 상태가 좋음, 보통, 나쁨 또는 구역별 확인 필요 상태인지를 알림으로 점검합니다.
+    1. **🔔 경고음 기능**
+       - 수업 집중이 필요하거나 경고가 필요한 순간 작동된 하루 경고음 누적 횟수를 모니터링합니다.
+    2. **📋 벌점제도 기능**
+       - 벌점을 받은 학생이 몇 명인지, 어떤 학생이 어떤 사유로 벌점을 받았는지 한눈에 파악합니다.
+    3. **📮 익명소통함 기능**
+       - 학생들이 마음을 담아 보낸 익명 편지 수량을 실시간 알림으로 확인합니다.
+    4. **🧹 청소 상태 체크 기능**
+       - 교실 구역별 청소 필요 유무와 완료율을 대시보드 알림 형태로 체크합니다.
     """)
+    st.markdown('</div>', unsafe_allow_html=True)
