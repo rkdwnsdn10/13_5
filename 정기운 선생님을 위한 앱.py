@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 이미지 스타일(네이비/블루 대시보드 톤) 맞춤 CSS 적용
+# 네이비/블루 대시보드 톤 맞춤 CSS 적용
 st.markdown("""
 <style>
     /* 배경색 및 기본 폰트 설정 */
@@ -106,7 +106,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 화면 상단 탭 구성 (사이드바 메뉴 없음)
+# 화면 상단 탭 구성
 # ---------------------------------------------------------
 tab1, tab2 = st.tabs(["📊 대시보드 메인", "💌 앱 소개 & 사용 방법"])
 
@@ -115,9 +115,10 @@ tab1, tab2 = st.tabs(["📊 대시보드 메인", "💌 앱 소개 & 사용 방�
 # ---------------------------------------------------------
 with tab1:
     st.markdown('<div class="dash-header">대 시 보 드</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="dash-sub">2학년 3반 · {datetime.date.today().strftime("%Y년 %m월 %d일")} 현재 · 정기운 선생님을 위한 실시간 통합 알림센터</div>', unsafe_allow_html=True)
+    # 1학년 13반으로 수정 적용 부분
+    st.markdown(f'<div class="dash-sub">1학년 13반 · {datetime.date.today().strftime("%Y년 %m월 %d일")} 현재 · 정기운 선생님을 위한 실시간 통합 알림센터</div>', unsafe_allow_html=True)
 
-    # 1. 상단 블루 요약 카운터 (이미지의 상단 네이비 바 느낌 적용)
+    # 1. 상단 블루 요약 카운터
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -154,7 +155,7 @@ with tab1:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. 하단 2열 구획 (왼쪽: 알림 및 현황 리스트 / 오른쪽: 학급 관리 현황)
+    # 2. 하단 알림 및 관리 현황 구획
     left_col, right_col = st.columns([1.2, 0.8])
 
     with left_col:
@@ -200,7 +201,6 @@ with tab1:
         st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown('<div class="box-title">📋 4대 학급 기능 항목 요약</div>', unsafe_allow_html=True)
 
-        # 4가지 기능 요약 차트/표 느낌의 리스트
         st.markdown("""
         * **🔔 경고음 카운트**: `3회` (주의)
         * **⚠️ 벌점 관리**: `2명` 등록 완료
