@@ -1,18 +1,15 @@
-import re
+from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 
 # 페이지 설정
 st.set_page_config(
-    page_title="실시간 규칙 위반 감지 & 경고음 시스템",
-    page_icon="🚨",
-    layout="centered"
+    page_title="생활 규칙 위반 경고음 사이렌", page_icon="🚨", layout="centered"
 )
 
 
-# Web Audio API 기반 오디오 생성 함수 (Streamlit Cloud 호환 100%)
-def play_sound(sound_type="beep"):
-    """브라우저 단에서 오디오를 합성하여 경고음을 재생하는 스크립트"""
+# Web Audio API 기반 오디오 생성 함수 (100% 오류 없는 브라우저 합성 방식)
+def trigger_alert_sound(sound_type):
     js_code = f"""
     <script>
     (function() {{
@@ -23,51 +20,52 @@ def play_sound(sound_type="beep"):
             const type = "{sound_type}";
             
             if (type === "siren") {{
-                // 강한 사이렌 경고음 (금지어 위반)
+                // 욕설/언어폭력: 강한 사이렌 경고음
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.type = 'sawtooth';
-                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
                 
-                osc.frequency.setValueAtTime(400, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.2);
-                osc.frequency.linearRampToValueAtTime(400, ctx.currentTime + 0.4);
-                osc.frequency.linearRampToValueAtTime(900, ctx.currentTime + 0.6);
+                // Frequency Modulation for Siren
+                osc.frequency.setValueAtTime(500, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.25);
+                osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.5);
+                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.75);
                 
                 osc.connect(gain);
                 gain.connect(ctx.destination);
                 osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.7);
-            }} else if (type === "beep") {{
-                // 비프음 (글자수 제한 위반)
-                [0, 0.15].forEach(delay => {{
+                osc.stop(ctx.currentTime + 0.8);
+            }} else if (type === "cleaning") {{
+                // 청소 미이행: 반복 비프음 (독촉)
+                [0, 0.15, 0.3].forEach(delay => {{
                     const osc = ctx.createOscillator();
                     const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(800, ctx.currentTime + delay);
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime + delay);
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(900, ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(0.25, ctx.currentTime + delay);
                     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.1);
                     osc.connect(gain);
                     gain.connect(ctx.destination);
                     osc.start(ctx.currentTime + delay);
                     osc.stop(ctx.currentTime + delay + 0.1);
                 }});
-            }} else if (type === "warning") {{
-                // 연속 특수문자 알림음
+            }} else if (type === "noise") {{
+                // 층간소음/흡연: 하강 트랜지스터 비상음
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(300, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
+                gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
                 osc.connect(gain);
                 gain.connect(ctx.destination);
                 osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.3);
+                osc.stop(ctx.currentTime + 0.5);
             }}
         }} catch(e) {{
-            console.error("Audio playback error:", e);
+            console.error("Audio Playback Error:", e);
         }}
     }})();
     </script>
@@ -75,85 +73,88 @@ def play_sound(sound_type="beep"):
     components.html(js_code, height=0, width=0)
 
 
+# 세션 이력 초기화
+if "logs" not in st.session_state:
+    st.session_state.logs = []
+
 # 메인 타이틀
-st.title("🚨 실시간 규칙 위반 검증기")
-st.caption("텍스트 입력 시 설정된 규칙을 어기면 즉시 경고음이 울립니다.")
+st.title("🚨 규칙 위반 경고음 사이렌")
+st.caption("버튼을 누르면 즉시 해당 위반에 맞는 경고음이 울립니다.")
 
 st.info(
-    "💡 **알림**: 웹 브라우저 정책상 화면을 한 번 이상 클릭한 후부터 경고음이 정상 작동합니다."
+    "💡 **안내**: 웹 브라우저 정책상 화면을 아무 곳이나 **최소 1회 클릭**한 뒤 버튼을 눌러야 오디오가 출력됩니다."
 )
 
-# 사이드바 설정 영역
-st.sidebar.header("⚙️ 위반 검증 규칙 설정")
+st.markdown("---")
 
-# 규칙 1: 금지어 설정
-banned_words_input = st.sidebar.text_input(
-    "1. 금지어 목록 (쉼표로 구분)", value="비밀, 오류, 금지, 스팸"
-)
-banned_words = [
-    w.strip() for w in banned_words_input.split(",") if w.strip()
-]
+# 규칙별 경고 버튼 섹션
+st.subheader("📢 위반 상황별 경고 버튼")
 
-# 규칙 2: 글자 수 범위 설정
-min_len, max_len = st.sidebar.slider(
-    "2. 허용 글자 수 범위", min_value=5, max_value=200, value=(10, 100)
-)
+col1, col2 = st.columns(2)
 
-# 규칙 3: 연속 특수문자 금지 여부
-block_special_chars = st.sidebar.checkbox(
-    "3. 특수문자 3회 이상 연속 입력 금지", value=True
-)
+with col1:
+    # 1. 청소 미이행 버튼
+    if st.button(
+        "🧹 청소 / 정리 안 함!", use_container_width=True, type="secondary"
+    ):
+        trigger_alert_sound("cleaning")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.logs.insert(
+            0, f"[{now_str}] 🧹 청소/정리 미이행 경고발생"
+        )
+        st.warning("🚨 [청소 미이행] 당번은 즉시 정리정돈을 실시하세요!")
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🔊 경고음 테스트 (사이렌)"):
-    play_sound("siren")
-    st.sidebar.success("테스트 소리가 작동했습니다.")
+    st.write("")
 
-# 입력 영역
-st.subheader("📝 검증할 문장 입력")
-user_text = st.text_area(
-    "아래 입력창에 텍스트를 작성하세요:",
-    height=150,
-    placeholder="규칙에 맞게 글을 입력해 보세요...",
-)
+    # 2. 층간소음 / 고성방가 버튼
+    if st.button(
+        "🔊 층간소음 / 고성방가!", use_container_width=True, type="secondary"
+    ):
+        trigger_alert_sound("noise")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.logs.insert(
+            0, f"[{now_str}] 🔊 소음 초과 경고발생"
+        )
+        st.error("🚨 [소음 위반] 주위가 시끄럽습니다! 조용히 해주세요.")
 
-current_len = len(user_text)
-st.caption(f"현재 글자 수: **{current_len}** 자")
+with col2:
+    # 3. 욕설 / 비속어 사용 버튼
+    if st.button(
+        "🤬 욕설 / 비속어 사용!", use_container_width=True, type="primary"
+    ):
+        trigger_alert_sound("siren")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.logs.insert(
+            0, f"[{now_str}] 🤬 욕설/비속어 사용 경고발생"
+        )
+        st.error("🚨 [벌칙] 고운 말을 사용합시다! 욕설이 감지되었습니다.")
 
-# 위반 검증 로직
-if st.button("🔍 규칙 검증하기", type="primary"):
-    violations = []
+    st.write("")
 
-    if not user_text.strip():
-        st.warning("텍스트를 입력한 후 검증해 주세요.")
-    else:
-        # 1. 금지어 포함 여부 검사 (우선순위 1)
-        found_banned = [word for word in banned_words if word in user_text]
-        if found_banned:
-            violations.append(
-                f"🚨 **[규칙 1 위반]** 금지어가 포함되어 있습니다: `{', '.join(found_banned)}`"
-            )
-            play_sound("siren")
+    # 4. 무단 흡연 / 기타 위반
+    if st.button(
+        "🚬 실내 흡연 / 기타 규칙 위반!",
+        use_container_width=True,
+        type="primary",
+    ):
+        trigger_alert_sound("siren")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.logs.insert(
+            0, f"[{now_str}] 🚬 실내 흡연/규칙 위반 경고발생"
+        )
+        st.error("🚨 [경고] 금지된 행동이 감지되었습니다!")
 
-        # 2. 글자 수 제한 검사
-        elif current_len < min_len or current_len > max_len:
-            violations.append(
-                f"⚠️ **[규칙 2 위반]** 글자 수가 범위를 벗어났습니다. (현재 {current_len}자 / 허용 {min_len}~{max_len}자)"
-            )
-            play_sound("beep")
+st.markdown("---")
 
-        # 3. 연속 특수문자 검사
-        elif block_special_chars and re.search(
-            r"[^\w\s]{3,}", user_text, re.UNICODE
-        ):
-            violations.append(
-                "⚡ **[규칙 3 위반]** 특수문자가 3회 이상 연속으로 입력되었습니다."
-            )
-            play_sound("warning")
+# 최근 위반 기록 이력 출력
+st.subheader("📜 최근 경고음 발령 이력")
 
-        # 결과 출력
-        if violations:
-            for v in violations:
-                st.error(v)
-        else:
-            st.success("✅ 모든 규칙을 통과했습니다! 위반 사항이 없습니다.")
+if st.session_state.logs:
+    for log in st.session_state.logs[:10]:  # 최근 10개만 표시
+        st.write(log)
+
+    if st.button("🗑️ 이력 전체 삭제"):
+        st.session_state.logs = []
+        st.rerun()
+else:
+    st.write("아직 발령된 경고 기록이 없습니다.")
