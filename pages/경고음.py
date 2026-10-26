@@ -1,160 +1,201 @@
-from datetime import datetime
+import base64
+import time
+import google.generativeai as genai
+import numpy as np
+from PIL import Image
 import streamlit as st
 import streamlit.components.v1 as components
 
-# 페이지 설정
+# 페이지 기본 설정
 st.set_page_config(
-    page_title="생활 규칙 위반 경고음 사이렌", page_icon="🚨", layout="centered"
+    page_title="AI 실시간 규칙 위반 자동 감지기", page_icon="🚨", layout="centered"
 )
 
 
-# Web Audio API 기반 오디오 생성 함수 (100% 오류 없는 브라우저 합성 방식)
-def trigger_alert_sound(sound_type):
-    js_code = f"""
+# 고출력 증폭 경고음 발생 스크립트 (Web Audio API Gain Node 증폭)
+def play_loud_siren():
+    js_code = """
     <script>
-    (function() {{
-        try {{
+    (function() {
+        try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
-            const type = "{sound_type}";
             
-            if (type === "siren") {{
-                // 욕설/언어폭력: 강한 사이렌 경고음
+            // 3중 오실레이터 + Gain 증폭기 조합으로 극대화된 사이렌 소리 생성
+            const masterGain = ctx.createGain();
+            masterGain.gain.setValueAtTime(0.9, ctx.currentTime); // 고출력 볼륨
+            masterGain.connect(ctx.destination);
+            
+            const frequencies = [600, 900, 1200];
+            frequencies.forEach((baseFreq, i) => {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-                osc.type = 'sawtooth';
+                osc.type = i % 2 === 0 ? 'sawtooth' : 'square'; // 강렬한 파형
+                
+                // 사이렌 피치 변조 (Siren Sweep)
+                osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(baseFreq + 500, ctx.currentTime + 0.3);
+                osc.frequency.linearRampToValueAtTime(baseFreq, ctx.currentTime + 0.6);
+                osc.frequency.linearRampToValueAtTime(baseFreq + 500, ctx.currentTime + 0.9);
+                
                 gain.gain.setValueAtTime(0.3, ctx.currentTime);
-                
-                // Frequency Modulation for Siren
-                osc.frequency.setValueAtTime(500, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.25);
-                osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.5);
-                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.75);
-                
                 osc.connect(gain);
-                gain.connect(ctx.destination);
+                gain.connect(masterGain);
+                
                 osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.8);
-            }} else if (type === "cleaning") {{
-                // 청소 미이행: 반복 비프음 (독촉)
-                [0, 0.15, 0.3].forEach(delay => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(900, ctx.currentTime + delay);
-                    gain.gain.setValueAtTime(0.25, ctx.currentTime + delay);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.1);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(ctx.currentTime + delay);
-                    osc.stop(ctx.currentTime + delay + 0.1);
-                }});
-            }} else if (type === "noise") {{
-                // 층간소음/흡연: 하강 트랜지스터 비상음
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(1000, ctx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.5);
-                gain.gain.setValueAtTime(0.4, ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.5);
-            }}
-        }} catch(e) {{
-            console.error("Audio Playback Error:", e);
-        }}
-    }})();
+                osc.stop(ctx.currentTime + 1.0);
+            });
+        } catch(e) {
+            console.error("Audio playback error:", e);
+        }
+    })();
     </script>
     """
     components.html(js_code, height=0, width=0)
 
 
-# 세션 이력 초기화
-if "logs" not in st.session_state:
-    st.session_state.logs = []
+# Gemini API 키 확인 및 초기화
+api_key = st.secrets.get("GEMINI_API_KEY")
+if api_key:
+    genai.configure(api_key=api_key)
 
-# 메인 타이틀
-st.title("🚨 규칙 위반 경고음 사이렌")
-st.caption("버튼을 누르면 즉시 해당 위반에 맞는 경고음이 울립니다.")
+# 세션 상태 초기화
+if "detection_logs" not in st.session_state:
+    st.session_state.detection_logs = []
 
-st.info(
-    "💡 **안내**: 웹 브라우저 정책상 화면을 아무 곳이나 **최소 1회 클릭**한 뒤 버튼을 눌러야 오디오가 출력됩니다."
+# 앱 타이틀
+st.title("🚨 실시간 규칙 위반 자동 감지 시스템")
+st.caption("카메라와 마이크 분석을 통해 위반 사항 감지 시 크고 강렬한 경고음이 자동 발령됩니다.")
+
+st.info("💡 **시작하기 전**: 브라우저 오디오 권한을 위해 화면 아무 곳이나 1회 클릭해 주세요.")
+
+# 사이드바 설정
+st.sidebar.header("⚙️ 자동 감지 규칙 설정")
+
+detection_mode = st.sidebar.radio(
+    "감지 모드 선택",
+    ["📹 웹캠 행동/상태 AI 자동 감지", "🎙️ 마이크 소음/고성 자동 감지"],
 )
 
-st.markdown("---")
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔊 경고음 볼륨 및 음량 테스트")
+if st.sidebar.button("🔊 고출력 사이렌 테스트"):
+    play_loud_siren()
+    st.sidebar.success("강렬한 사이렌 경고음 출력 테스트")
 
-# 규칙별 경고 버튼 섹션
-st.subheader("📢 위반 상황별 경고 버튼")
+# ---------------------------------------------------------
+# 모드 1: 웹캠 + Gemini AI 행동/상태 자동 감지
+# ---------------------------------------------------------
+if detection_mode == "📹 웹캠 행동/상태 AI 자동 감지":
+    st.subheader("📹 웹캠 AI 위반 감지 모드")
 
-col1, col2 = st.columns(2)
-
-with col1:
-    # 1. 청소 미이행 버튼
-    if st.button(
-        "🧹 청소 / 정리 안 함!", use_container_width=True, type="secondary"
-    ):
-        trigger_alert_sound("cleaning")
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.logs.insert(
-            0, f"[{now_str}] 🧹 청소/정리 미이행 경고발생"
+    if not api_key:
+        st.error(
+            "⚠️ Streamlit Secrets에 `GEMINI_API_KEY`가 설정되어 있지 않습니다."
         )
-        st.warning("🚨 [청소 미이행] 당번은 즉시 정리정돈을 실시하세요!")
+        st.stop()
 
-    st.write("")
+    rule_description = st.text_input(
+        "감지할 위반 규칙 설정 (자연어로 작성)",
+        value="청소를 안 하고 쓰레기가 방치된 상태, 손가락으로 욕설을 하는 행위, 실내 흡연",
+    )
 
-    # 2. 층간소음 / 고성방가 버튼
-    if st.button(
-        "🔊 층간소음 / 고성방가!", use_container_width=True, type="secondary"
-    ):
-        trigger_alert_sound("noise")
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.logs.insert(
-            0, f"[{now_str}] 🔊 소음 초과 경고발생"
-        )
-        st.error("🚨 [소음 위반] 주위가 시끄럽습니다! 조용히 해주세요.")
+    img_file = st.camera_input("카메라로 실시간 위반 상태 촬영 / 자동 스캔")
 
-with col2:
-    # 3. 욕설 / 비속어 사용 버튼
-    if st.button(
-        "🤬 욕설 / 비속어 사용!", use_container_width=True, type="primary"
-    ):
-        trigger_alert_sound("siren")
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.logs.insert(
-            0, f"[{now_str}] 🤬 욕설/비속어 사용 경고발생"
-        )
-        st.error("🚨 [벌칙] 고운 말을 사용합시다! 욕설이 감지되었습니다.")
+    if img_file:
+        image = Image.open(img_file)
+        st.image(image, caption="스캔된 프레임", width=350)
 
-    st.write("")
+        with st.spinner("AI가 규칙 위반 여부를 검석하고 있습니다..."):
+            try:
+                model = genai.GenerativeModel("gemini-2.5-flash-lite")
+                prompt = f"""
+                당신은 실시간 안전 및 규칙 모니터링 AI입니다.
+                다음 [위반 규칙 목록]에 해당하는 행동이나 상태가 이미지에 포함되어 있는지 판단하세요.
+                
+                [위반 규칙 목록]: {rule_description}
+                
+                응답 형식:
+                첫 번째 줄에는 반드시 'VIOLATION' 또는 'NORMAL' 중 하나만 작성하세요.
+                두 번째 줄에는 판단 이유를 한 문장으로 간단히 설명하세요.
+                """
 
-    # 4. 무단 흡연 / 기타 위반
-    if st.button(
-        "🚬 실내 흡연 / 기타 규칙 위반!",
-        use_container_width=True,
-        type="primary",
-    ):
-        trigger_alert_sound("siren")
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.logs.insert(
-            0, f"[{now_str}] 🚬 실내 흡연/규칙 위반 경고발생"
-        )
-        st.error("🚨 [경고] 금지된 행동이 감지되었습니다!")
+                response = model.generate_content([prompt, image])
+                result_text = response.text.strip()
 
-st.markdown("---")
+                lines = result_text.split("\n")
+                status = lines[0].strip().upper()
+                reason = lines[1] if len(lines) > 1 else result_text
 
-# 최근 위반 기록 이력 출력
-st.subheader("📜 최근 경고음 발령 이력")
+                if "VIOLATION" in status:
+                    # 크고 강렬한 경고음 자동 재생
+                    play_loud_siren()
 
-if st.session_state.logs:
-    for log in st.session_state.logs[:10]:  # 최근 10개만 표시
-        st.write(log)
+                    st.error(f"🚨 **[자동 감지] 위반 사항이 포착되었습니다!**")
+                    st.write(f"**이유:** {reason}")
 
-    if st.button("🗑️ 이력 전체 삭제"):
-        st.session_state.logs = []
-        st.rerun()
+                    log_item = f"[{time.strftime('%H:%M:%S')}] 🚨 위반 감지: {reason}"
+                    st.session_state.detection_logs.insert(0, log_item)
+                else:
+                    st.success("✅ **[정상]** 설정된 규칙 위반 사항이 감지되지 않았습니다.")
+                    st.write(f"**분석:** {reason}")
+
+            except Exception as e:
+                st.error(f"AI 분석 중 오류가 발생했습니다: {str(e)}")
+
+# ---------------------------------------------------------
+# 모드 2: 마이크 데시벨/소음 자동 감지
+# ---------------------------------------------------------
 else:
-    st.write("아직 발령된 경고 기록이 없습니다.")
+    st.subheader("🎙️ 마이크 소음 & 고성 자동 감지 모드")
+
+    noise_threshold = st.slider(
+        "경고음발생 임계 소음 수치 (기준 데시벨)",
+        min_value=30,
+        max_value=100,
+        value=70,
+    )
+
+    audio_file = st.audio_input("마이크로 주변 소음 / 음성을 녹음하여 측정하세요")
+
+    if audio_file:
+        try:
+            # 음성 파일에서 진폭/데시벨 계산
+            audio_bytes = audio_file.read()
+            # 간단한 바이너리 진폭 계산
+            audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
+            if len(audio_data) > 0:
+                rms = np.sqrt(np.mean(audio_data**2))
+                decibel = int(20 * np.log10(rms)) if rms > 0 else 0
+            else:
+                decibel = 0
+
+            st.metric("측정된 소음 수치", f"{decibel} dB")
+
+            if decibel >= noise_threshold:
+                # 크고 강렬한 경고음 자동 재생
+                play_loud_siren()
+
+                st.error(
+                    f"🚨 **[소음 초과 감지]** 기준 수치({noise_threshold} dB)를 초과했습니다! ({decibel} dB)"
+                )
+                log_item = f"[{time.strftime('%H:%M:%S')}] 🚨 소음 초과 감지: {decibel} dB"
+                st.session_state.detection_logs.insert(0, log_item)
+            else:
+                st.success(
+                    f"✅ **[정상]** 소음 수치가 허용 범위 내입니다. ({decibel} dB)"
+                )
+
+        except Exception as e:
+            st.error(f"오디오 분석 중 오류가 발생했습니다: {str(e)}")
+
+# 로그 기록 영역
+st.markdown("---")
+st.subheader("📜 실시간 자동 감지 이력")
+
+if st.session_state.detection_logs:
+    for log in st.session_state.detection_logs[:10]:
+        st.write(log)
+else:
+    st.write("아직 감지된 규칙 위반 기록이 없습니다.")
