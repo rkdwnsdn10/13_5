@@ -1,5 +1,4 @@
 import streamlit as st
-import random
 import time
 
 # 1. 페이지 설정 및 디자인 (테마 컬러: 청결하고 깔끔한 민트/블루)
@@ -23,11 +22,11 @@ st.markdown("""
 # 2. 세션 상태(Session State) 초기화 - 데이터 유지용
 if "cleaning_data" not in st.session_state:
     st.session_state.cleaning_data = {
-        "칠판 및 교탁": {"checked": False, "score": 3, "checker": ""},
-        "책상 및 의자 정돈": {"checked": False, "score": 3, "checker": ""},
-        "바닥 비질 및 걸레질": {"checked": False, "score": 3, "checker": ""},
-        "쓰레기통 및 분리수거": {"checked": False, "score": 3, "checker": ""},
-        "창틀 및 사물함 위": {"checked": False, "score": 3, "checker": ""}
+        "칠판 및 교탁": {"checked": False, "score": 3},
+        "책상 및 의자 정돈": {"checked": False, "score": 3},
+        "바닥 비질 및 걸레질": {"checked": False, "score": 3},
+        "쓰레기통 및 분리수거": {"checked": False, "score": 3},
+        "창틀 및 사물함 위": {"checked": False, "score": 3}
     }
 
 if "alert_triggered" not in st.session_state:
@@ -41,7 +40,7 @@ st.markdown("<div class='main-title'>✨ 우리 반 청소 상태 체크 프로�
 st.markdown("<div class='subtitle'>간편하게 청소 상태를 점검하고, 미흡한 곳은 화면 알림을 통해 빠르게 인지하세요!</div>", unsafe_allow_html=True)
 
 # 4. 화면 레이아웃 분할
-col1, col2 = st.columns([3, 2])
+col1, col2 = st.columns()
 
 with col1:
     st.subheader("📋 실시간 청소 구역별 점검")
@@ -52,14 +51,12 @@ with col1:
             with st.container():
                 st.markdown(f"<div class='area-box'><b>🔍 점검 구역: {area}</b></div>", unsafe_allow_html=True)
                 
-                # 가로로 정렬하여 입력 받기
-                c1, c2, c3 = st.columns([2, 2, 3])
+                # 가로로 정렬하여 입력 받기 (이름 칸 제외하고 2열 구조로 변경)
+                c1, c2 = st.columns(2)
                 with c1:
                     info["checked"] = st.checkbox("점검 완료", value=info["checked"], key=f"check_{area}")
                 with c2:
                     info["score"] = st.slider("청결 점수 (1~5점)", min_value=1, max_value=5, value=info["score"], key=f"score_{area}")
-                with c3:
-                    info["checker"] = st.text_input("확인 학생 이름", value=info["checker"], key=f"name_{area}", placeholder="이름 입력")
                 st.write("---")
     except Exception as e:
         st.error(f"데이터를 불러오는 중 오류가 발생했습니다: {e}")
@@ -114,10 +111,10 @@ with col2:
 # 6. 리셋 버튼 (초기화)
 if st.button("🔄 전체 입력 초기화"):
     st.session_state.cleaning_data = {
-        "칠판 및 교탁": {"checked": False, "score": 3, "checker": ""},
-        "책상 및 의자 정돈": {"checked": False, "score": 3, "checker": ""},
-        "바닥 비질 및 걸레질": {"checked": False, "score": 3, "checker": ""},
-        "쓰레기통 및 분리수거": {"checked": False, "score": 3, "checker": ""},
-        "창틀 및 사물함 위": {"checked": False, "score": 3, "checker": ""}
+        "칠판 및 교탁": {"checked": False, "score": 3},
+        "책상 및 의자 정돈": {"checked": False, "score": 3},
+        "바닥 비질 및 걸레질": {"checked": False, "score": 3},
+        "쓰레기통 및 분리수거": {"checked": False, "score": 3},
+        "창틀 및 사물함 위": {"checked": False, "score": 3}
     }
     st.rerun()
