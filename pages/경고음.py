@@ -22,16 +22,17 @@ def play_loud_siren():
             if (!AudioContext) return;
             const ctx = new AudioContext();
             
-            // 3중 오실레이터 + Gain 증폭기 조합으로 극대화된 사이렌 소리 생성
+            // Gain Node 증폭기를 사용하여 소리를 극대화
             const masterGain = ctx.createGain();
-            masterGain.gain.setValueAtTime(0.9, ctx.currentTime); // 고출력 볼륨
+            masterGain.gain.setValueAtTime(1.0, ctx.currentTime);
             masterGain.connect(ctx.destination);
             
+            // 3중 오실레이터 조합으로 강렬한 비상 사이렌 재생
             const frequencies = [600, 900, 1200];
             frequencies.forEach((baseFreq, i) => {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-                osc.type = i % 2 === 0 ? 'sawtooth' : 'square'; // 강렬한 파형
+                osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
                 
                 // 사이렌 피치 변조 (Siren Sweep)
                 osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
@@ -55,10 +56,13 @@ def play_loud_siren():
     components.html(js_code, height=0, width=0)
 
 
-# Gemini API 키 확인 및 초기화
-api_key = st.secrets.get("GEMINI_API_KEY")
+# Gemini API 키 확인 및 예외 처리
+api_key = st.secrets.get("GEMINI_API_KEY", None)
 if api_key:
-    genai.configure(api_key=api_key)
+    try:
+        genai.configure(api_key=api_key)
+    except Exception as e:
+        st.error(f"API Key 설정 오류: {e}")
 
 # 세션 상태 초기화
 if "detection_logs" not in st.session_state:
@@ -66,9 +70,13 @@ if "detection_logs" not in st.session_state:
 
 # 앱 타이틀
 st.title("🚨 실시간 규칙 위반 자동 감지 시스템")
-st.caption("카메라와 마이크 분석을 통해 위반 사항 감지 시 크고 강렬한 경고음이 자동 발령됩니다.")
+st.caption(
+    "카메라와 마이크 분석을 통해 위반 사항 감지 시 크고 강렬한 경고음이 자동 발령됩니다."
+)
 
-st.info("💡 **시작하기 전**: 브라우저 오디오 권한을 위해 화면 아무 곳이나 1회 클릭해 주세요.")
+st.info(
+    "💡 **시작하기 전**: 브라우저 오디오 정책상 화면 아무 곳이나 **1회 이상 클릭**해 주세요."
+)
 
 # 사이드바 설정
 st.sidebar.header("⚙️ 자동 감지 규칙 설정")
@@ -79,8 +87,8 @@ detection_mode = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🔊 경고음 볼륨 및 음량 테스트")
-if st.sidebar.button("🔊 고출력 사이렌 테스트"):
+st.sidebar.subheader("🔊 경고음 볼륨 테스트")
+if st.sidebar.button("🔊 고출력 사이렌 소리 테스트"):
     play_loud_siren()
     st.sidebar.success("강렬한 사이렌 경고음 출력 테스트")
 
@@ -91,23 +99,22 @@ if detection_mode == "📹 웹캠 행동/상태 AI 자동 감지":
     st.subheader("📹 웹캠 AI 위반 감지 모드")
 
     if not api_key:
-        st.error(
-            "⚠️ Streamlit Secrets에 `GEMINI_API_KEY`가 설정되어 있지 않습니다."
+        st.warning(
+            "⚠️ Streamlit Secrets에 `GEMINI_API_KEY`가 설정되어 있지 않습니다. 아래 **Secrets 설정 방법**을 참고해 주세요."
         )
-        st.stop()
 
     rule_description = st.text_input(
         "감지할 위반 규칙 설정 (자연어로 작성)",
         value="청소를 안 하고 쓰레기가 방치된 상태, 손가락으로 욕설을 하는 행위, 실내 흡연",
     )
 
-    img_file = st.camera_input("카메라로 실시간 위반 상태 촬영 / 자동 스캔")
+    img_file = st.camera_input("카메라로 실시간 위반 상태 촬영 / 스캔")
 
-    if img_file:
+    if img_file and api_key:
         image = Image.open(img_file)
         st.image(image, caption="스캔된 프레임", width=350)
 
-        with st.spinner("AI가 규칙 위반 여부를 검석하고 있습니다..."):
+        with st.spinner("AI가 규칙 위반 여부를 검증하고 있습니다..."):
             try:
                 model = genai.GenerativeModel("gemini-2.5-flash-lite")
                 prompt = f"""
@@ -125,20 +132,22 @@ if detection_mode == "📹 웹캠 행동/상태 AI 자동 감지":
                 result_text = response.text.strip()
 
                 lines = result_text.split("\n")
-                status = lines[0].strip().upper()
+                status = lines[0].strip().upper() if len(lines) > 0 else ""
                 reason = lines[1] if len(lines) > 1 else result_text
 
                 if "VIOLATION" in status:
                     # 크고 강렬한 경고음 자동 재생
                     play_loud_siren()
 
-                    st.error(f"🚨 **[자동 감지] 위반 사항이 포착되었습니다!**")
-                    st.write(f"**이유:** {reason}")
+                    st.error("🚨 **[자동 감지] 위반 사항이 포착되었습니다!**")
+                    st.write(f"**판단 이유:** {reason}")
 
                     log_item = f"[{time.strftime('%H:%M:%S')}] 🚨 위반 감지: {reason}"
                     st.session_state.detection_logs.insert(0, log_item)
                 else:
-                    st.success("✅ **[정상]** 설정된 규칙 위반 사항이 감지되지 않았습니다.")
+                    st.success(
+                        "✅ **[정상]** 설정된 규칙 위반 사항이 감지되지 않았습니다."
+                    )
                     st.write(f"**분석:** {reason}")
 
             except Exception as e:
@@ -151,22 +160,21 @@ else:
     st.subheader("🎙️ 마이크 소음 & 고성 자동 감지 모드")
 
     noise_threshold = st.slider(
-        "경고음발생 임계 소음 수치 (기준 데시벨)",
+        "경고음 발생 임계 소음 수치 (기준 데시벨)",
         min_value=30,
         max_value=100,
-        value=70,
+        value=65,
     )
 
-    audio_file = st.audio_input("마이크로 주변 소음 / 음성을 녹음하여 측정하세요")
+    audio_file = st.audio_input("마이크로 주변 소음 / 음성을 녹음하세요")
 
     if audio_file:
         try:
-            # 음성 파일에서 진폭/데시벨 계산
             audio_bytes = audio_file.read()
-            # 간단한 바이너리 진폭 계산
             audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
+
             if len(audio_data) > 0:
-                rms = np.sqrt(np.mean(audio_data**2))
+                rms = np.sqrt(np.mean(audio_data.astype(np.float64) ** 2))
                 decibel = int(20 * np.log10(rms)) if rms > 0 else 0
             else:
                 decibel = 0
