@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 
 # ---------------------------------------------------------
-# Page Configuration & CSS Styling
+# Page Configuration & CSS
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="정기운 선생님을 위한 Smart Classroom Dashboard",
@@ -10,7 +10,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# 고급 학교 대시보드 스타일 CSS
 st.markdown("""
 <style>
     .stApp {
@@ -114,7 +113,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Session State Initialization (기능 페이지 완벽 연동용 세션)
+# 중앙 데이터 저장소 (모든 페이지 실시간 공유용)
 # ---------------------------------------------------------
 if "alarm_count" not in st.session_state:
     st.session_state["alarm_count"] = 0
@@ -136,7 +135,7 @@ if "cleaning_zones" not in st.session_state:
     }
 
 # ---------------------------------------------------------
-# Sidebar Navigation (첫 번째 이미지의 나열 목록 정확히 반영)
+# 사이드바 메뉴 (이미지 요청 항목과 100% 동일)
 # ---------------------------------------------------------
 st.sidebar.markdown("### 🏫 정기운 선생님을 위한 앱")
 menu = st.sidebar.radio(
@@ -145,13 +144,11 @@ menu = st.sidebar.radio(
 )
 
 # ---------------------------------------------------------
-# PAGE 1: 정기운 선생님을 위한 앱 (메인 페이지)
+# 1. 메인 페이지
 # ---------------------------------------------------------
 if menu == "📢 메인 페이지":
-    # 상단 탭 (요청대로 메인 대시보드와 앱 설명 2개만 남김)
     tab1, tab2 = st.tabs(["📊 메인 대시보드", "📖 앱 소개 & 사용 설명"])
 
-    # --- TAB 1: 메인 대시보드 ---
     with tab1:
         st.markdown(f"""
         <div class="school-banner">
@@ -160,13 +157,13 @@ if menu == "📢 메인 페이지":
         </div>
         """, unsafe_allow_html=True)
 
-        # 청소 실시간 연동 상태 계산
+        # 청소 완료율 및 필요 구역 계산
         total_zones = len(st.session_state["cleaning_zones"])
         clean_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "깨끗함"]
         needed_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "확인 필요"]
         completion_rate = int((len(clean_zones) / total_zones) * 100)
 
-        # 1. 상단 요약 카운터 Card
+        # 상단 실시간 카운터
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
@@ -203,14 +200,14 @@ if menu == "📢 메인 페이지":
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # 2. 하단 실시간 연동 알림 피드
+        # 하단 실시간 연동 알림 피드
         left_col, right_col = st.columns([1.2, 0.8])
 
         with left_col:
             st.markdown('<div class="content-box">', unsafe_allow_html=True)
             st.markdown('<div class="box-title">📢 실시간 학급 주요 알림</div>', unsafe_allow_html=True)
             
-            # 1) 청소 상태 연동 알림
+            # 1) 청소 상태 연동
             if needed_zones:
                 zones_str = ", ".join(needed_zones)
                 st.markdown(f"""
@@ -227,7 +224,7 @@ if menu == "📢 메인 페이지":
                 </div>
                 """, unsafe_allow_html=True)
 
-            # 2) 벌점제도 연동 알림
+            # 2) 벌점 연동
             if st.session_state["demerits"]:
                 demerit_details = "<br>".join([f"<b>{d['학생']}</b> 학생 (사유: {d['사유']} / 벌점 {d['벌점']}점)" for d in st.session_state["demerits"]])
                 st.markdown(f"""
@@ -244,7 +241,7 @@ if menu == "📢 메인 페이지":
                 </div>
                 """, unsafe_allow_html=True)
 
-            # 3) 익명소통함 연동 알림 (0건 시 무알림 처리)
+            # 3) 익명 편지 연동
             letter_count = len(st.session_state["anonymous_letters"])
             if letter_count > 0:
                 latest = st.session_state["anonymous_letters"][-1]
@@ -262,7 +259,7 @@ if menu == "📢 메인 페이지":
                 </div>
                 """, unsafe_allow_html=True)
 
-            # 4) 경고음 연동 알림
+            # 4) 경고음 연동
             st.markdown(f"""
             <div class="alert-item-warning">
                 <b>🔔 경고음 발생 알림</b><br>
@@ -282,16 +279,11 @@ if menu == "📢 메인 페이지":
             * **💌 익명소통함**: `{len(st.session_state['anonymous_letters'])}건` 수신
             * **🧹 청소 평가**: `{len(needed_zones)}구역` 점검 필요 (완료율 `{completion_rate}%`)
             """)
-
-            st.markdown("<hr>", unsafe_allow_html=True)
-            st.caption("💡 좌측 사이드바 메뉴에서 각 기능 페이지로 이동하여 직접 데이터를 추가할 수 있습니다.")
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TAB 2: 앱 소개 & 사용 설명 ---
     with tab2:
         st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown('<div class="box-title">💌 정기운 선생님께 드리는 글</div>', unsafe_allow_html=True)
-        
         st.success("""
         ### 👋 매일 학생들을 챙기느라 바쁘신 정기운 선생님!
 
@@ -301,24 +293,14 @@ if menu == "📢 메인 페이지":
         이 앱은 총 4가지 기능이 있고 선생님의 필요에 따라 페이지에 들어가서 사용하시면 돼요.  
         잘 사용 하시길 바래요. ✨
         """)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown('<div class="box-title">📖 앱의 4가지 주요 기능 및 활용법</div>', unsafe_allow_html=True)
-
-        st.markdown("""
-        1. **🔔 경고음 기능**: 수업 시간 집중 유도 및 경고음 누적 발생 횟수를 모니터링합니다.
-        2. **📋 벌점제도 기능**: 벌점을 받은 학생 수와 구체적인 사유를 한눈에 모니터링합니다.
-        3. **📮 익명소통함 기능**: 학생들이 남긴 익명 편지 수량과 고민/건의 내용을 확인합니다.
-        4. **🧹 청소상태 체크 프로그램**: 교실 6개 구역의 청소 상태 및 완료율을 실시간으로 확인합니다.
-        """)
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# PAGE 2: 경고음 기능 페이지 (메인과 실시간 연동)
+# 2. 경고음 기능 페이지 (실시간 즉시 연동)
 # ---------------------------------------------------------
 elif menu == "🔔 경고음":
     st.title("🔔 경고음 컨트롤러")
-    st.write("수업 시간 집중 유도가 필요할 때 버튼을 클릭하세요. 클릭 횟수가 메인 대시보드에 실시간 연동됩니다.")
+    st.write("버튼을 누르면 메인 대시보드의 경고음 횟수가 즉시 올라갑니다.")
 
     st.subheader(f"오늘 누적 경고음 횟수: {st.session_state['alarm_count']} 회")
 
@@ -326,8 +308,8 @@ elif menu == "🔔 경고음":
     with col_a:
         if st.button("🚨 경고음 울리기 (+1)", use_container_width=True):
             st.session_state["alarm_count"] += 1
-            st.toast("🚨 경고음 횟수가 추가되어 메인 대시보드에 반영되었습니다!")
-            st.rerun()
+            st.success("🚨 경고음 횟수가 1회 추가되어 메인 대시보드에 즉시 반영되었습니다!")
+            st.rerun()  # ★ 핵심: 즉시 메인 대시보드에 데이터 동기화
 
     with col_b:
         if st.button("🔄 카운트 리셋 (0회)", use_container_width=True):
@@ -336,26 +318,26 @@ elif menu == "🔔 경고음":
             st.rerun()
 
 # ---------------------------------------------------------
-# PAGE 3: 벌점제도 기능 페이지 (메인과 실시간 연동)
+# 3. 벌점제도 기능 페이지 (실시간 즉시 연동)
 # ---------------------------------------------------------
 elif menu == "📋 벌점제도":
     st.title("📋 벌점제도 관리")
-    st.write("학생에게 부여한 벌점 내역이 메인 대시보드 알림 피드에 즉시 연동됩니다.")
+    st.write("학생 벌점을 작성하면 메인 대시보드 알림 피드에 즉시 추가됩니다.")
 
     with st.form("demerit_form", clear_on_submit=True):
         student = st.text_input("학생 이름")
         reason = st.text_area("벌점 부여 사유")
         points = st.number_input("부여 벌점", min_value=1, max_value=10, value=1)
         
-        if st.form_submit_button("벌점 부여 및 대시보드 연동"):
+        if st.form_submit_button("벌점 부여 및 메인 대시보드 연동"):
             if student.strip() and reason.strip():
                 st.session_state["demerits"].append({
                     "학생": student.strip(),
                     "사유": reason.strip(),
                     "벌점": points
                 })
-                st.success(f"{student} 학생의 벌점이 등록되어 메인 대시보드에 연동되었습니다!")
-                st.rerun()
+                st.success(f"'{student}' 학생의 벌점이 등록되어 메인 대시보드 알림에 반영되었습니다!")
+                st.rerun()  # ★ 핵심: 메인 알림 피드 동기화
             else:
                 st.warning("학생 이름과 사유를 입력해 주세요.")
 
@@ -367,19 +349,19 @@ elif menu == "📋 벌점제도":
         st.info("현재 부과된 벌점 내역이 없습니다.")
 
 # ---------------------------------------------------------
-# PAGE 4: 익명소통함 기능 페이지 (메인과 실시간 연동)
+# 4. 익명소통함 기능 페이지 (실시간 즉시 연동)
 # ---------------------------------------------------------
 elif menu == "📮 익명소통함":
     st.title("📮 익명소통함 (우리 반 마음우체통)")
-    st.write("학생들이 편지를 제출하면 메인 대시보드의 편지 개수가 실시간으로 업데이트됩니다.")
+    st.write("편지를 쓰면 메인 대시보드의 도착 편지 수량과 최신 알림이 즉시 바뀝니다.")
 
     category = st.selectbox("의견 종류", ["💭 고민 상담", "💡 학급 건의", "👍 칭찬하기", "💬 기타"])
-    content = st.text_area("내용을 입력하세요")
+    content = st.text_area("전하고 싶은 내용을 적어주세요")
     agree = st.checkbox("개인정보를 포함하지 않았음을 확인합니다.")
 
     if st.button("💌 익명으로 편지 제출하기"):
         if not agree:
-            st.warning("동의 체크박스를 눌러주세요.")
+            st.warning("개인정보 확인 체크박스를 선택해 주세요.")
         elif not content.strip():
             st.warning("내용을 입력해주세요.")
         else:
@@ -388,8 +370,8 @@ elif menu == "📮 익명소통함":
                 "content": content.strip(),
                 "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             })
-            st.success("편지가 제출되었습니다! 메인 대시보드 알림 카운트에 연동되었습니다.")
-            st.rerun()
+            st.success("편지가 제출되어 메인 대시보드 알림에 즉시 반영되었습니다!")
+            st.rerun()  # ★ 핵심: 메인 편지 알림 동기화
 
     st.markdown("---")
     st.subheader("📬 도착한 익명 편지 목록 (선생님 확인용)")
@@ -401,11 +383,11 @@ elif menu == "📮 익명소통함":
         st.info("현재 도착한 익명 편지가 없습니다.")
 
 # ---------------------------------------------------------
-# PAGE 5: 청소상태 체크 프로그램 (메인과 실시간 연동)
+# 5. 청소상태 체크 프로그램 (실시간 즉시 연동)
 # ---------------------------------------------------------
 elif menu == "🧹 청소상태 체크 프로그램":
     st.title("🧹 청소상태 체크 프로그램")
-    st.write("구역별 청소 상태를 체크하면 메인 대시보드의 완료율과 알림 메시지가 실시간으로 변경됩니다.")
+    st.write("체크박스를 변경할 때마다 메인 대시보드의 청소 완료율과 점검 필요 구역 알림이 즉시 변경됩니다.")
 
     cols = st.columns(3)
     zones = list(st.session_state["cleaning_zones"].keys())
@@ -419,7 +401,7 @@ elif menu == "🧹 청소상태 체크 프로그램":
                 new_status = "깨끗함" if is_clean else "확인 필요"
                 if new_status != st.session_state["cleaning_zones"][z]:
                     st.session_state["cleaning_zones"][z] = new_status
-                    st.rerun()
+                    st.rerun()  # ★ 핵심: 청소 상태 즉시 메인에 반영
 
                 status_color = "🟢" if is_clean else "🟡"
                 st.write(f"현재 상태: {status_color} **{st.session_state['cleaning_zones'][z]}**")
