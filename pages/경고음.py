@@ -1,222 +1,210 @@
-import io
-import re
-import struct
 import time
-import wave
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="5대 생활 수칙 실시간 자동 감지기",
-    page_icon="🚨",
-    layout="centered",
+    page_title="실시간 음성 욕설 자동 감지기", page_icon="🚨", layout="centered"
 )
 
-
-# ---------------------------------------------------------
-# 1. WAV 음원 생성기 (파이썬 내장 wave 모듈 활용 - 외부 라이브러리 0개)
-# ---------------------------------------------------------
-def create_siren_wav(sound_type="siren"):
-    """브라우저에 확실히 전달되는 WAV 오디오 바이너리 생성"""
-    sample_rate = 22050
-    duration = 0.8 if sound_type == "siren" else 0.4
-    num_samples = int(sample_rate * duration)
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wav_file:
-        wav_file.setnchannels(1)  # 모노
-        wav_file.setsampwidth(2)  # 16비트
-        wav_file.setframerate(sample_rate)
-
-        frames = []
-        for i in range(num_samples):
-            t = i / sample_rate
-            if sound_type == "siren":
-                # 피치가 오르락내리락하는 비상 사이렌 (500Hz ~ 1200Hz)
-                freq = 500 + 700 * (0.5 + 0.5 * (1 if (int(t * 8) % 2) else -1))
-            elif sound_type == "cleaning":
-                # 청소 독촉 880Hz 비프
-                freq = 880 if (int(t * 10) % 2 == 0) else 0
-            elif sound_type == "noise":
-                # 층간소음 경고 1000Hz -> 300Hz 하강음
-                freq = max(300, 1000 - (t * 1200))
-            else:
-                # 일반 750Hz 비프
-                freq = 750
-
-            # 파형 생성
-            if freq > 0:
-                val = int(
-                    32767.0 * 0.5 * (1 if (t * freq * 2) % 2 < 1 else -1)
-                )  # Square wave
-            else:
-                val = 0
-            frames.append(struct.pack("<h", val))
-
-        wav_file.writeframes(b"".join(frames))
-
-    return buf.getvalue()
-
-
-# ---------------------------------------------------------
-# 2. Web Audio API 강제 활성화 스크립트 (차단 우회)
-# ---------------------------------------------------------
-def play_web_audio_alarm(sound_type="siren"):
-    js_code = f"""
-    <script>
-    (function() {{
-        try {{
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            
-            // 기존 멈춤 상태 강제 깨우기 (resume)
-            let ctx = window._globalAudioCtx;
-            if (!ctx) {{
-                ctx = new AudioContext();
-                window._globalAudioCtx = ctx;
-            }}
-            if (ctx.state === 'suspended') {{
-                ctx.resume();
-            }}
-            
-            const type = "{sound_type}";
-            const masterGain = ctx.createGain();
-            masterGain.gain.setValueAtTime(0.8, ctx.currentTime);
-            masterGain.connect(ctx.destination);
-            
-            if (type === "siren") {{
-                const osc = ctx.createOscillator();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(600, ctx.currentTime);
-                osc.frequency.linearRampToValueAtTime(1200, ctx.currentTime + 0.3);
-                osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.6);
-                osc.connect(masterGain);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.7);
-            }} else {{
-                const osc = ctx.createOscillator();
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(800, ctx.currentTime);
-                osc.connect(masterGain);
-                osc.start(ctx.currentTime);
-                osc.stop(ctx.currentTime + 0.3);
-            }}
-        }} catch(e) {{
-            console.error(e);
-        }}
-    }})();
-    </script>
-    """
-    components.html(js_code, height=0, width=0)
-
-
-# 세션 관리
+# 세션 이력 관리
 if "detection_logs" not in st.session_state:
     st.session_state.detection_logs = []
-if "play_sound_trigger" not in st.session_state:
-    st.session_state.play_sound_trigger = None
 
-# 메인 UI
-st.title("🚨 5대 생활 수칙 실시간 자동 감지기")
-st.caption("위반 사항 감지 시 크고 강렬한 경고음이 즉시 출력됩니다.")
-
-# 브라우저 차단 해제 클릭 유도 버튼
-st.warning(
-    "⚠️ **소리가 안 날 때 해결법**: 아래 [🔊 브라우저 사운드 차단 해제] 버튼을 1회 누르시면 소리가 정상 출력됩니다!"
+st.title("🚨 실시간 음성 욕설 & 금지어 자동 감지기")
+st.caption(
+    "마이크를 켜두면 브라우저가 음성을 실시간 분석하여 욕설 감지 시 즉시 사이렌이 울립니다."
 )
-if st.button("🔊 브라우저 사운드 차단 해제 (필수 클릭)", type="secondary"):
-    play_web_audio_alarm("siren")
-    st.success("브라우저 오디오 오디오 권한이 승인되었습니다!")
 
 # 사이드바 설정
-st.sidebar.header("⚙️ 세부 검증 규칙 설정")
-banned_input = st.sidebar.text_input(
-    "1️⃣ 금지어/비속어 목록", value="욕설, 바보, 짜증, 나쁜말"
+st.sidebar.header("⚙️ 음성 감지 규칙 설정")
+banned_words_input = st.sidebar.text_input(
+    "🚫 감지할 욕설/금지어 (쉼표 구분)",
+    value="바보, 멍청이, 짜증, 씨발, 개새끼, 미친",
 )
-cleaning_input = st.sidebar.text_input(
-    "2️⃣ 청소/정리 미이행 목록", value="청소 안함, 쓰레기, 설거지"
-)
-noise_input = st.sidebar.text_input(
-    "3️⃣ 소음/층간소음 목록", value="뛰어다님, 고성방가, 시끄러움"
-)
-smoking_input = st.sidebar.text_input(
-    "4️⃣ 실내 흡연 관련 목록", value="담배, 흡연, 전자담배"
-)
-max_chars = st.sidebar.number_input(
-    "5️⃣ 최대 허용 글자 수", min_value=10, max_value=500, value=150
+banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
+
+st.sidebar.info(
+    "💡 마이크 음성 인식이 활성화되면 말을 할 때마다 실시간으로 욕설 여부를 검사합니다."
 )
 
-banned_words = [w.strip() for w in banned_input.split(",") if w.strip()]
-cleaning_words = [w.strip() for w in cleaning_input.split(",") if w.strip()]
-noise_words = [w.strip() for w in noise_input.split(",") if w.strip()]
-smoking_words = [w.strip() for w in smoking_input.split(",") if w.strip()]
+# 자바스크립트 기반 실시간 음성 인식(Web Speech API) & 오디오 합성 엔진
+banned_words_js = str(banned_words)
 
-# 검증 영역
-st.subheader("📝 현재 상황 / 작성 내용 입력")
-user_text = st.text_area(
-    "상황을 입력하면 규칙 위반을 자동 판별합니다:",
-    placeholder="예: 거실에서 담배 피우고 청소도 안 했어...",
-    height=120,
-)
+speech_and_sound_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {{
+            border: 2px solid #FF4B4B;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: #FFF5F5;
+            text-align: center;
+            font-family: sans-serif;
+        }}
+        .btn {{
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }}
+        .btn-stop {{
+            background-color: #555555;
+        }}
+        .status {{
+            font-weight: bold;
+            margin-top: 10px;
+            color: #333;
+        }}
+        .transcript-box {{
+            margin-top: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            min-height: 40px;
+            color: #111;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>🎙️ 실시간 음성 모니터링</h3>
+        <button id="startBtn" class="btn" onclick="startRecognition()">▶️ 음성 자동 감지 시작</button>
+        <button id="stopBtn" class="btn btn-stop" onclick="stopRecognition()" disabled>⏹️ 감지 중지</button>
+        <div id="status" class="status">상태: 대기 중</div>
+        <div id="transcript" class="transcript-box">마이크 버튼을 누르고 말씀하세요...</div>
+    </div>
 
-if st.button("🔍 5대 규칙 위반 자동 검사", type="primary"):
-    if not user_text.strip():
-        st.warning("검사할 내용을 입력해 주세요.")
-    else:
-        violations = []
-        sound_type = None
+    <script>
+        let recognition = null;
+        let isListening = false;
+        const bannedWords = {banned_words_js};
 
-        if any(w in user_text for w in smoking_words):
-            violations.append("🚬 **[규칙 4 위반] 실내 흡연 감지**")
-            sound_type = "siren"
-        elif any(w in user_text for w in banned_words):
-            violations.append("🤬 **[규칙 1 위반] 비속어/금지어 감지**")
-            sound_type = "siren"
-        elif any(w in user_text for w in cleaning_words):
-            violations.append("🧹 **[규칙 2 위반] 청소 미이행 감지**")
-            sound_type = "cleaning"
-        elif any(w in user_text for w in noise_words):
-            violations.append("🔊 **[규칙 3 위반] 소음 감지**")
-            sound_type = "noise"
-        elif len(user_text) > max_chars:
-            violations.append("📏 **[규칙 5 위반] 글자 수 초과**")
-            sound_type = "beep"
+        // 오디오 사이렌 발생 함수
+        function playSiren() {{
+            try {{
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                if (ctx.state === 'suspended') {{
+                    ctx.resume();
+                }}
+                
+                const masterGain = ctx.createGain();
+                masterGain.gain.setValueAtTime(1.0, ctx.currentTime);
+                masterGain.connect(ctx.destination);
 
-        if violations:
-            st.session_state.play_sound_trigger = sound_type
-            for v in violations:
-                st.error(v)
-                st.session_state.detection_logs.insert(
-                    0,
-                    {
-                        "시각": time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "위반": v,
-                    },
-                )
-        else:
-            st.session_state.play_sound_trigger = None
-            st.success("✅ **[정상]** 규칙 위반 사항이 없습니다.")
+                [600, 900, 1200].forEach((baseFreq, i) => {{
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
 
-# 음원 재생 처리 (2중 보장)
-if st.session_state.play_sound_trigger:
-    s_type = st.session_state.play_sound_trigger
+                    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, ctx.currentTime + 0.3);
+                    osc.frequency.linearRampToValueAtTime(baseFreq, ctx.currentTime + 0.6);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, ctx.currentTime + 0.9);
 
-    # 방법 1: Web Audio 스크립트 실행
-    play_web_audio_alarm(s_type)
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(masterGain);
 
-    # 방법 2: Streamlit 내장 플레이어 자동 재생 (가장 확실함)
-    wav_bytes = create_siren_wav(s_type)
-    st.audio(wav_bytes, format="audio/wav", autoplay=True)
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 1.0);
+                }});
+            }} catch(e) {{
+                console.error("Audio error:", e);
+            }}
+        }}
 
-    # 트리거 리셋
-    st.session_state.play_sound_trigger = None
+        // 음성 인식 시작
+        function startRecognition() {{
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {{
+                alert("이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 브라우저를 사용해 주세요.");
+                return;
+            }}
 
-# 이력 출력
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {{
+                isListening = true;
+                document.getElementById('status').innerText = "상태: 🔴 음성 감지 중... (말을 하면 실시간으로 분석합니다)";
+                document.getElementById('status').style.color = "red";
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+            }};
+
+            recognition.onresult = function(event) {{
+                let currentTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {{
+                    currentTranscript += event.results[i][0].transcript;
+                }}
+                document.getElementById('transcript').innerText = "인식된 음성: " + currentTranscript;
+
+                // 욕설/금지어 실시간 비교
+                for (let word of bannedWords) {{
+                    if (currentTranscript.includes(word)) {{
+                        playSiren();
+                        document.getElementById('status').innerText = "🚨 [경고] 욕설 감지됨!! (" + word + ")";
+                        
+                        // 인식 스트림 리셋
+                        recognition.stop();
+                        setTimeout(() => {{ if(isListening) recognition.start(); }}, 1200);
+                        break;
+                    }}
+                }}
+            }};
+
+            recognition.onerror = function(event) {{
+                console.error("Speech Recognition Error:", event.error);
+            }};
+
+            recognition.onend = function() {{
+                if (isListening) {{
+                    recognition.start(); // 자동 재연결로 계속 듣기 유지
+                }} else {{
+                    document.getElementById('status').innerText = "상태: 대기 중";
+                    document.getElementById('status').style.color = "#333";
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                }}
+            }};
+
+            recognition.start();
+        }}
+
+        function stopRecognition() {{
+            isListening = false;
+            if (recognition) {{
+                recognition.stop();
+            }}
+        }}
+    </script>
+</body>
+</html>
+"""
+
+components.html(speech_and_sound_html, height=280)
+
 st.markdown("---")
-st.subheader("📜 위반 감지 이력")
-if st.session_state.detection_logs:
-    st.dataframe(
-        pd.DataFrame(st.session_state.detection_logs), use_container_width=True
-    )
+st.subheader("💡 사용 방법 안내")
+st.markdown(
+    """
+1. **Chrome(크롬) 브라우저**에서 앱에 접속합니다.
+2. 위 화면의 **`▶️ 음성 자동 감지 시작`** 버튼을 누르고 브라우저 마이크 권한을 허용합니다.
+3. 마이크에 대고 말을 시작하면 **실시간으로 말을 인식**합니다.
+4. 설정한 금지어(예: *바보*, *멍청이* 등)를 말하는 순간 **입력할 필요 없이 자동으로 즉시 강렬한 사이렌**이 울립니다!
+"""
+)
