@@ -2,7 +2,7 @@ import streamlit as st
 import datetime
 
 # ---------------------------------------------------------
-# Page Configuration & CSS Styling
+# Page Configuration & CSS Styling (학교 일러스트 테마 적용)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="정기운 선생님을 위한 Smart Classroom Dashboard",
@@ -10,111 +10,132 @@ st.set_page_config(
     layout="wide"
 )
 
-# 네이비/블루 대시보드 톤 맞춤 CSS
+# 학교 배경 감성 CSS (학교 패턴 및 감성 폰트/카드 디자인)
 st.markdown("""
 <style>
-    .main {
-        background-color: #f4f7fa;
+    /* 학교 교실 분위기의 백그라운드 색상 및 은은한 도트 패턴 */
+    .stApp {
+        background-color: #f8fafc;
+        background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+        background-size: 20px 20px;
     }
-    .dash-header {
-        text-align: center;
-        color: #1a2b4c;
-        font-weight: 800;
-        font-size: 2.2rem;
-        margin-bottom: 5px;
-    }
-    .dash-sub {
-        text-align: center;
-        color: #5a6b82;
-        font-size: 0.95rem;
-        margin-bottom: 20px;
-    }
-    .top-card {
-        background-color: #1e3a8a;
+    
+    /* 대시보드 상단 학교 일러스트 배너 */
+    .school-banner {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
         color: white;
+        padding: 30px 20px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 10px 15px -3px rgba(30, 58, 138, 0.2);
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+    }
+    .school-banner h1 {
+        font-size: 2.3rem;
+        font-weight: 800;
+        margin-bottom: 8px;
+        color: #ffffff;
+    }
+    .school-banner p {
+        font-size: 1.05rem;
+        color: #e0f2fe;
+        margin: 0;
+    }
+
+    /* 상단 네이비 지표 카드 */
+    .top-card {
+        background: #ffffff;
+        border: 2px solid #cbd5e1;
         padding: 18px 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         text-align: left;
+        transition: transform 0.2s;
     }
     .top-card-label {
-        font-size: 0.88rem;
-        color: #bfdbfe;
-        font-weight: 600;
-        margin-bottom: 5px;
+        font-size: 0.9rem;
+        color: #475569;
+        font-weight: 700;
+        margin-bottom: 6px;
     }
     .top-card-val {
         font-size: 1.8rem;
-        font-weight: bold;
-        color: #ffffff;
+        font-weight: 800;
+        color: #1e3a8a;
     }
+
+    /* 학급 알림 박스 카드 */
     .content-box {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
+        padding: 24px;
+        border-radius: 18px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         margin-bottom: 20px;
     }
     .box-title {
         color: #1e293b;
-        font-size: 1.1rem;
-        font-weight: 700;
-        margin-bottom: 15px;
-        border-bottom: 2px solid #3b82f6;
+        font-size: 1.15rem;
+        font-weight: 800;
+        margin-bottom: 18px;
+        border-bottom: 3px solid #3b82f6;
         padding-bottom: 6px;
         display: inline-block;
     }
+
+    /* 알림 리스트 바 */
     .alert-item-warning {
         background-color: #fef3c7;
         color: #92400e;
-        padding: 12px 15px;
-        border-radius: 8px;
-        border-left: 5px solid #f59e0b;
-        margin-bottom: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 6px solid #f59e0b;
+        margin-bottom: 12px;
         font-size: 0.95rem;
     }
     .alert-item-danger {
         background-color: #fee2e2;
         color: #991b1b;
-        padding: 12px 15px;
-        border-radius: 8px;
-        border-left: 5px solid #ef4444;
-        margin-bottom: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 6px solid #ef4444;
+        margin-bottom: 12px;
         font-size: 0.95rem;
     }
     .alert-item-info {
         background-color: #f3e8ff;
         color: #6b21a8;
-        padding: 12px 15px;
-        border-radius: 8px;
-        border-left: 5px solid #a855f7;
-        margin-bottom: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 6px solid #a855f7;
+        margin-bottom: 12px;
         font-size: 0.95rem;
     }
     .alert-item-success {
         background-color: #dcfce7;
         color: #166534;
-        padding: 12px 15px;
-        border-radius: 8px;
-        border-left: 5px solid #22c55e;
-        margin-bottom: 10px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 6px solid #22c55e;
+        margin-bottom: 12px;
         font-size: 0.95rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# Session State Initialization (전체 연동용 중앙 세션 저장소)
+# Session State Initialization (실시간 데이터 연동 전역 관리)
 # ---------------------------------------------------------
 if "alarm_count" not in st.session_state:
-    st.session_state["alarm_count"] = 0  # 초기 경고음 0회
+    st.session_state["alarm_count"] = 0  # 초기 0회
 
 if "demerits" not in st.session_state:
-    st.session_state["demerits"] = []    # 초기 벌점 내역 없음
+    st.session_state["demerits"] = []    # 초기 벌점 목록 없음
 
 if "anonymous_letters" not in st.session_state:
-    st.session_state["anonymous_letters"] = []  # 초기 익명 편지 없음 (0건)
+    st.session_state["anonymous_letters"] = []  # 초기 마음우체통 편지 없음 (0건)
 
 if "cleaning_zones" not in st.session_state:
     st.session_state["cleaning_zones"] = {
@@ -127,10 +148,10 @@ if "cleaning_zones" not in st.session_state:
     }
 
 # ---------------------------------------------------------
-# 화면 상단 탭 구성 (메인 대시보드 + 4가지 기능 페이지 + 안내)
+# 화면 상단 탭 구성
 # ---------------------------------------------------------
 tabs = st.tabs([
-    "📊 메인 대시보드", 
+    "📊 대시보드 메인", 
     "💌 우리 반 마음우체통", 
     "🔔 경고음 관리", 
     "📋 벌점 관리", 
@@ -139,11 +160,16 @@ tabs = st.tabs([
 ])
 
 # ---------------------------------------------------------
-# TAB 1: 메인 대시보드 (실시간 데이터 연동)
+# TAB 1: 실시간 메인 대시보드 (학교 테마 디자인)
 # ---------------------------------------------------------
 with tabs[0]:
-    st.markdown('<div class="dash-header">대 시 보 드</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="dash-sub">1학년 13반 · {datetime.date.today().strftime("%Y년 %m월 %d일")} 현재 · 정기운 선생님을 위한 실시간 통합 알림센터</div>', unsafe_allow_html=True)
+    # 학교 교실 느낌의 상단 배너
+    st.markdown(f"""
+    <div class="school-banner">
+        <h1>🏫 1학년 13반 Smart Classroom</h1>
+        <p>정기운 선생님을 위한 실시간 학급 관리 통합 대시보드 · {datetime.date.today().strftime("%Y년 %m월 %d일")}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # 청소 상태 연동 계산
     total_zones = len(st.session_state["cleaning_zones"])
@@ -151,7 +177,7 @@ with tabs[0]:
     needed_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "확인 필요"]
     completion_rate = int((len(clean_zones) / total_zones) * 100)
 
-    # 1. 상단 네이비 요약 카운터
+    # 1. 상단 요약 카운터
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -188,14 +214,14 @@ with tabs[0]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. 하단 알림 및 현황
+    # 2. 하단 알림 피드 & 실시간 현황
     left_col, right_col = st.columns([1.2, 0.8])
 
     with left_col:
         st.markdown('<div class="content-box">', unsafe_allow_html=True)
         st.markdown('<div class="box-title">📢 실시간 학급 주요 알림</div>', unsafe_allow_html=True)
         
-        # 1) 청소 상태 실시간 알림
+        # 1) 청소 상태 실시간 연동 알림
         if needed_zones:
             zones_str = ", ".join(needed_zones)
             st.markdown(f"""
@@ -212,7 +238,7 @@ with tabs[0]:
             </div>
             """, unsafe_allow_html=True)
 
-        # 2) 벌점 알림
+        # 2) 벌점 실시간 연동 알림
         if st.session_state["demerits"]:
             demerit_details = "<br>".join([f"<b>{d['학생']}</b> 학생 (사유: {d['사유']} / 벌점 {d['벌점']}점)" for d in st.session_state["demerits"]])
             st.markdown(f"""
@@ -229,7 +255,7 @@ with tabs[0]:
             </div>
             """, unsafe_allow_html=True)
 
-        # 3) 마음우체통 실시간 알림 (0건 처리 완벽 반영)
+        # 3) 마음우체통 실시간 연동 알림 (0건일 때 정확한 문구)
         letter_count = len(st.session_state["anonymous_letters"])
         if letter_count > 0:
             latest = st.session_state["anonymous_letters"][-1]
@@ -247,7 +273,7 @@ with tabs[0]:
             </div>
             """, unsafe_allow_html=True)
 
-        # 4) 경고음 알림
+        # 4) 경고음 실시간 연동 알림
         st.markdown(f"""
         <div class="alert-item-warning">
             <b>🔔 경고음 발생 알림</b><br>
@@ -269,11 +295,11 @@ with tabs[0]:
         """)
 
         st.markdown("<hr>", unsafe_allow_html=True)
-        st.caption("💡 상단 탭의 기능 페이지에서 데이터를 직접 추가/수정해보세요. 대시보드에 실시간 연동됩니다.")
+        st.caption("💡 각 탭에서 데이터를 제출하면 메인 대시보드에 즉시 반영됩니다.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# TAB 2: 우리 반 마음우체통 (조원 화면 디자인 일치)
+# TAB 2: 우리 반 마음우체통 (조원 페이지 호환)
 # ---------------------------------------------------------
 with tabs[1]:
     st.title("📮 우리 반 마음우체통")
@@ -306,7 +332,7 @@ with tabs[1]:
                     "content": content.strip(),
                     "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                 })
-                st.success("익명 편지가 전송되었습니다! 메인 대시보드 알림에 실시간 반영됩니다.")
+                st.success("익명 편지가 전송되었습니다! 메인 대시보드에 실시간 반영됩니다.")
                 st.rerun()
 
     else:
@@ -320,7 +346,7 @@ with tabs[1]:
             st.info("현재 수신된 익명 편지가 없습니다.")
 
 # ---------------------------------------------------------
-# TAB 3: 경고음 관리 페이지
+# TAB 3: 경고음 관리
 # ---------------------------------------------------------
 with tabs[2]:
     st.title("🔔 경고음 컨트롤러")
@@ -339,7 +365,7 @@ with tabs[2]:
             st.rerun()
 
 # ---------------------------------------------------------
-# TAB 4: 벌점 관리 페이지
+# TAB 4: 벌점 관리
 # ---------------------------------------------------------
 with tabs[3]:
     st.title("📋 벌점 관리 시스템")
@@ -367,7 +393,7 @@ with tabs[3]:
         st.info("부과된 벌점이 없습니다.")
 
 # ---------------------------------------------------------
-# TAB 5: 청소 대시보드
+# TAB 5: 청소 상태 대시보드
 # ---------------------------------------------------------
 with tabs[4]:
     st.title("🧹 청소 상태 대시보드")
@@ -387,7 +413,7 @@ with tabs[4]:
                 st.caption(f"상태: {st.session_state['cleaning_zones'][z]}")
 
 # ---------------------------------------------------------
-# TAB 6: 정기운 선생님 앱 소개 및 사용 설명
+# TAB 6: 앱 소개 & 사용 설명
 # ---------------------------------------------------------
 with tabs[5]:
     st.markdown('<div class="content-box">', unsafe_allow_html=True)
