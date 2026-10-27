@@ -1,7 +1,7 @@
 import streamlit as st
 import datetime
 
-# 1. 페이지 설정
+# 1. 페이지 기본 설정
 st.set_page_config(
     page_title="쌤 화남 지수표 & 벌점 관리",
     page_icon="😡",
@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 파스텔 UI 커스텀 CSS
+# 2. 파스텔 UI 커스텀 CSS (이미지 스타일 반영)
 st.markdown("""
     <style>
     .stApp {
@@ -44,7 +44,7 @@ st.markdown("""
         border-radius: 20px;
         padding: 18px;
         text-align: center;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }
     .teacher-anger-title {
         font-size: 15px;
@@ -143,7 +143,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 세션 상태 초기화
+# 3. 세션 상태 안전 초기화 (오류 방지)
 if "teacher_anger_level" not in st.session_state:
     st.session_state["teacher_anger_level"] = 35
 
@@ -170,7 +170,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 5. 🔥 선생님 화남 상세 지수표 계산
+# 5. 🔥 선생님 화남 상세 상태 계산 함수
 anger_val = st.session_state["teacher_anger_level"]
 
 if anger_val < 25:
@@ -213,6 +213,30 @@ tab1, tab2, tab3 = st.tabs(["🏠 홈 현황", "🔒 선생님 전용 (작성)",
 # [탭 1] 홈 현황
 # -------------------------------
 with tab1:
+    # 🌟 [요청사항 반영] 홈 화면에서 선생님 화남 지수를 바로 수치로 작성/입력하는 칸
+    st.write("### ✍️ 쌤 화남 지수 직접 작성하기")
+    col_input, col_btn = st.columns([2, 1])
+    
+    with col_input:
+        input_anger = st.number_input(
+            "화남 지수 입력 (0~100)", 
+            min_value=0, 
+            max_value=100, 
+            value=st.session_state["teacher_anger_level"],
+            step=1,
+            key="home_anger_input"
+        )
+    with col_btn:
+        st.write("") # 버튼 위치 맞춤용 빈 공간
+        st.write("")
+        if st.button("적용하기", key="home_anger_btn", use_container_width=True):
+            st.session_state["teacher_anger_level"] = int(input_anger)
+            st.success("화남 지수가 반영되었습니다!")
+            st.rerun()
+
+    st.divider()
+
+    # 학급 누적 벌점 표시
     total_score = sum(item["score"] for item in st.session_state["records"])
     
     st.markdown(f"""
@@ -238,7 +262,7 @@ with tab1:
         st.info("아직 기록된 벌점이 없습니다.")
 
 # -------------------------------
-# [탭 2] 선생님 전용 (1+1 퀴즈 인증 적용)
+# [탭 2] 선생님 전용 (1+1=2 퀴즈 인증)
 # -------------------------------
 with tab2:
     if not st.session_state["is_teacher"]:
@@ -255,9 +279,9 @@ with tab2:
                     st.success("선생님 인증이 완료되었습니다!")
                     st.rerun()
                 else:
-                    st.error("답이 틀렸습니다! 선생님만 들어올 수 있어요.")
+                    st.error("답이 틀렸습니다! 정답은 2 입니다.")
     else:
-        # 선생님 인증 성공 시 보이는 화면
+        # 선생님 인증 성공 시
         st.success("🔓 선생님 전용 관리 모드 실행 중")
         if st.button("로그아웃 (학생 모드로 전환)", type="secondary"):
             st.session_state["is_teacher"] = False
@@ -265,17 +289,7 @@ with tab2:
 
         st.write("---")
         
-        # 1. 화남 지수 직접 수정
-        st.write("### 🌡️ 선생님 화남 지수 직접 변경")
-        new_anger = st.slider("현재 화남 수치 (0 ~ 100)", min_value=0, max_value=100, value=st.session_state["teacher_anger_level"])
-        if st.button("화남 지수 업데이트", use_container_width=True):
-            st.session_state["teacher_anger_level"] = new_anger
-            st.success(f"선생님 화남 지수가 {new_anger}점으로 업데이트되었습니다.")
-            st.rerun()
-
-        st.write("---")
-        
-        # 2. 벌점 부과 작성
+        # 벌점 부과 작성
         st.write("### ✍️ 벌점 위반 항목 기록")
         
         col1, col2, col3 = st.columns(3)
@@ -319,6 +333,7 @@ with tab2:
                         "memo": memo if memo.strip() else "상세 내용 없음"
                     }
                     st.session_state["records"].insert(0, new_data)
+                    # 벌점 추가 시 화남 지수 자동 상승
                     st.session_state["teacher_anger_level"] = min(100, st.session_state["teacher_anger_level"] + int(score))
                     st.success(f"'{category}' 항목(-{score}점)이 기록되었으며, 화남 지수가 상승했습니다!")
                     st.rerun()
