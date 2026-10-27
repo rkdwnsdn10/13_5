@@ -5,83 +5,6 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="교내 규칙 위반 원클릭 경고음 사이렌",
-    page_icon="🚨",
-    layout="centered",
-)
-
-
-# 고출력 사이렌 및 오디오 경고음 발생 스크립트 (Web Audio API)
-def trigger_alert_sound(sound_type="siren"):
-    js_code = f"""
-    <script>
-    (function() {{
-        try {{
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            if (!AudioContext) return;
-            const ctx = new AudioContext();
-            if (ctx.state === 'suspended') {{
-                ctx.resume();
-            }}
-
-            const masterGain = ctx.createGain();
-            masterGain.gain.setValueAtTime(1.0, ctx.currentTime);
-            masterGain.connect(ctx.destination);
-
-            const type = "{sound_type}";
-
-            if (type === "siren") {{
-                // 강렬한 사이렌 (욕설, 무단 외출, 기물 파손)
-                [600, 900, 1200].forEach((baseFreq, i) => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
-
-                    osc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, ctx.currentTime + 0.3);
-                    osc.frequency.linearRampToValueAtTime(baseFreq, ctx.currentTime + 0.6);
-                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, ctx.currentTime + 0.9);
-
-                    gain.gain.setValueAtTime(0.35, ctx.currentTime);
-                    osc.connect(gain);
-                    gain.connect(masterGain);
-
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 1.0);
-                }});
-            }} else if (type === "warning") {{
-                // 단발성 비상 경고음 (수업 중 휴대폰, 복도 질서)
-                [0, 0.15, 0.3].forEach(delay => {{
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type요청하신 내용에 딱 맞게 **실시간 자동 감지의 복잡한 마이크 문제나 외부 라이브러리 설치 오류(requirements.txt 변경) 없이, 원할 때 버튼 하나로 즉시 크고 강렬한 경고음을 울리는 스쿨 알림 게시판 앱**으로 수정했습니다.
-
-현재 설정해 두신 `requirements.txt` (`streamlit`, `pandas`만 포함) 그대로 **100% 오류 없이 배포 및 작동**합니다.
-
----
-
-### 1. 앱 기획 설명: '학교 생활 수칙 위반 경고 사이렌 (School Alert Board)'
-
-#### 🎯 주요 기능 및 추가된 학교 규칙
-1. **욕설 및 언어폭력 (siren)**: 욕설, 비속어, 언어폭력 발생 시 즉시 고주파 비상 사이렌이 울립니다.
-2. **복도/교실 내 무단 질주 및 고성방가 (noise)**: 쉬는 시간이나 수업 시간 전후 복도에서 뛰거나 소란을 피울 때 경고음이 울립니다.
-3. **수업 중 스마트폰 무단 사용 (beep)**: 수업 시간에 휴대폰, 태블릿 등 스마트기기를 무단 사용하는 행동을 단속합니다.
-4. **교내 무단 흡연 및 전자담배 (siren)**: 화장실, 교사 뒤편 등 교내 금연 구역 위반 시 화재/흡연 비상 사이렌이 발생합니다.
-5. **교복/용의 복장 및 단정 미흡 (cleaning)**: 등교/학교 생활 중 교복 착용 규정 위반 시 독촉용 경고음이 울립니다.
-6. **실시간 위반 발령 기록 (Pandas 대시보드)**: 누가/언제/어떤 규칙을 위반해서 경고음을 발령했는지 타임라인 표로 기록되고 관리됩니다.
-
----
-
-### 2. `pages/경고음.py` 전체 코드
-
-```python
-import time
-import pandas as pd
-import streamlit as st
-import streamlit.components.v1 as components
-
-# 페이지 기본 설정
-st.set_page_config(
     page_title="학교 생활 수칙 위반 경고 사이렌", page_icon="🚨", layout="centered"
 )
 
@@ -106,7 +29,7 @@ def play_school_alarm(sound_type="siren"):
             masterGain.connect(ctx.destination);
             
             if (type === "siren") {{
-                // 비상 사이렌 (욕설, 흡연)
+                // 강렬한 비상 사이렌 (욕설, 무단 흡연)
                 const frequencies = [600, 900, 1200];
                 frequencies.forEach((baseFreq, i) => {{
                     const osc = ctx.createOscillator();
@@ -118,7 +41,7 @@ def play_school_alarm(sound_type="siren"):
                     osc.frequency.linearRampToValueAtTime(baseFreq, ctx.currentTime + 0.6);
                     osc.frequency.linearRampToValueAtTime(baseFreq + 600, ctx.currentTime + 0.9);
                     
-                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.35, ctx.currentTime);
                     osc.connect(gain);
                     gain.connect(masterGain);
                     
@@ -126,7 +49,7 @@ def play_school_alarm(sound_type="siren"):
                     osc.stop(ctx.currentTime + 1.0);
                 }});
             }} else if (type === "noise") {{
-                // 복도 뛰어다님/소란 경고음
+                // 복도 질주 및 소란 경고음
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.type = 'sawtooth';
@@ -139,7 +62,7 @@ def play_school_alarm(sound_type="siren"):
                 osc.start(ctx.currentTime);
                 osc.stop(ctx.currentTime + 0.6);
             }} else if (type === "beep") {{
-                // 스마트폰 사용 / 복장 위반 비프음
+                // 스마트폰 사용 및 복장 규정 위반 비프음
                 [0, 0.15, 0.3].forEach(delay => {{
                     const osc = ctx.createOscillator();
                     const gain = ctx.createGain();
@@ -188,7 +111,7 @@ st.subheader("📢 학교 수칙 위반 상황별 원클릭 경고")
 col1, col2 = st.columns(2)
 
 with col1:
-    # 규칙 1: 욕설 및 비속어
+    # 규칙 1: 욕설 및 언어폭력
     if st.button(
         "🤬 욕설 / 언어폭력 감지!", use_container_width=True, type="primary"
     ):
