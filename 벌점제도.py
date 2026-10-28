@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 파스텔 UI 커스텀 CSS
+# 2. 첨부 이미지 파스텔 톤 UI 커스텀 CSS
 st.markdown("""
     <style>
     .stApp {
@@ -37,7 +37,7 @@ st.markdown("""
         margin: 0;
     }
 
-    /* 🔥 쌤 화남 지수표 배너 카드 */
+    /* 🔥 쌤 화남 지수표 전용 배너 */
     .teacher-anger-card {
         background: linear-gradient(135deg, #FFEDD5 0%, #FEE2E2 100%);
         border: 2px solid #FECACA;
@@ -63,7 +63,7 @@ st.markdown("""
         color: #B91C1C;
     }
     .anger-detail-box {
-        background-color: rgba(255, 255, 255, 0.8);
+        background-color: rgba(255, 255, 255, 0.85);
         border-radius: 12px;
         padding: 12px;
         margin-top: 10px;
@@ -73,7 +73,7 @@ st.markdown("""
         line-height: 1.6;
     }
 
-    /* 벌점 현황 카드 */
+    /* 학급 벌점 카드 */
     .score-card {
         background-color: #FFF5F5;
         border: 1px solid #FFE4E6;
@@ -144,7 +144,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. 세션 상태 안전 초기화
+# 3. Session State 데이터 초기화 (에러 방지)
 if "teacher_anger_level" not in st.session_state:
     st.session_state["teacher_anger_level"] = 35
 
@@ -163,7 +163,7 @@ if "selected_category" not in st.session_state:
 if "selected_score" not in st.session_state:
     st.session_state["selected_score"] = 5
 
-# 4. 상단 타이틀 헤더
+# 4. 상단 타이틀
 st.markdown("""
     <div class="main-header">
         <h1>쌤 화남 지수표 & 벌점 관리 😡</h1>
@@ -171,7 +171,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 5. 🔥 선생님 화남 지수표 현황 계산
+# 5. 🔥 선생님 화남 지수 상태 실시간 계산
 anger_val = int(st.session_state["teacher_anger_level"])
 
 if anger_val < 25:
@@ -195,7 +195,7 @@ else:
     face_status = "😡 표정: 매우 심각함"
     action_guide = "☠️ 숨소리도 죽이고 즉시 바른 자세를 취하세요!"
 
-# 화남 지수표 메인 표시 배너
+# 화남 지수표 대시보드
 st.markdown(f"""
     <div class="teacher-anger-card">
         <div class="teacher-anger-title">📊 쌤 화남 지수표 현황</div>
@@ -209,16 +209,15 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# 6. 탭 구성 (청소 알림 없음)
+# 6. 탭 메인 구성
 tab1, tab2, tab3 = st.tabs(["🏠 홈 / 지수 작성", "🔒 선생님 전용 (기록)", "📜 학급 규칙"])
 
 # -------------------------------
-# [탭 1] 홈 / 화남 지수 작성
+# [탭 1] 홈 / 화남 지수 직접 작성
 # -------------------------------
 with tab1:
-    st.subheader("✍️ 쌤 화남 지수 체크 & 적기")
+    st.subheader("✍️ 쌤 화남 지수 수치 직접 작성")
     
-    # 선생님 화남 지수 직접 적는 칸
     col_input, col_btn = st.columns([3, 1])
     with col_input:
         new_anger_input = st.number_input(
@@ -230,16 +229,15 @@ with tab1:
             key="home_anger_input_key"
         )
     with col_btn:
-        st.write("") # 버튼 세로 위치 조정용
+        st.write("")
         st.write("")
         if st.button("수치 적용", key="btn_apply_anger_home", use_container_width=True):
             st.session_state["teacher_anger_level"] = int(new_anger_input)
-            st.success(f"화남 지수가 {new_anger_input}점으로 적용되었습니다!")
+            st.success(f"화남 지수가 {new_anger_input}점으로 등록되었습니다!")
             st.rerun()
 
     st.divider()
 
-    # 학급 누적 벌점 현황
     total_score = sum(item["score"] for item in st.session_state["records"])
     st.markdown(f"""
         <div class="score-card">
@@ -292,7 +290,7 @@ with tab2:
         
         st.write("### 🌡️ 선생님 화남 지수 상세 조절 슬라이더")
         slider_anger = st.slider(
-            "화남 수치 설정",
+            "화남 수치 조절",
             min_value=0,
             max_value=100,
             value=int(st.session_state["teacher_anger_level"]),
