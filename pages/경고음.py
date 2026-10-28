@@ -129,8 +129,8 @@ full_engine_html = f"""
 
         // 유사도 매칭 (비슷한 발음도 자동 검출)
         function checkSimilarPronunciation(input, target) {{
-            const cleanInput = input.replace(/\\s+/g, '');
-            const cleanTarget = target.replace(/\\s+/g, '');
+            const cleanInput = input.split(' ').join('');
+            const cleanTarget = target.split(' ').join('');
             
             if (cleanInput.includes(cleanTarget)) return true;
 
@@ -312,4 +312,28 @@ st.markdown("---")
 st.subheader("📜 실시간 음성 및 위반 기록 이력")
 
 manual_log = st.text_input(
-    "📝 직접 위반
+    "📝 직접 위반 내용을 적어 수동으로 기록 남기기",
+    placeholder="예: 담치기(무단외출) 시도 및 스마트폰 사용...",
+)
+if st.button("➕ 수동 이력 추가", use_container_width=True):
+    if manual_log:
+        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.detection_logs.insert(
+            0,
+            {
+                "시각": log_time,
+                "기록 내용": manual_log,
+                "상태": "🚨 수칙 위반 기록됨",
+            },
+        )
+        st.success("이력에 기록되었습니다.")
+
+if st.session_state.detection_logs:
+    df_logs = pd.DataFrame(st.session_state.detection_logs)
+    st.dataframe(df_logs, use_container_width=True)
+
+    if st.button("🗑️ 전체 이력 초기화"):
+        st.session_state.detection_logs = []
+        st.rerun()
+else:
+    st.write("아직 기록된 수칙 위반 내용이 없습니다.")
