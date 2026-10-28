@@ -9,6 +9,61 @@ st.set_page_config(
     layout="centered"
 )
 
+# 배경색(파란색 계열) 및 글자색(검정색/높은 가독성) 커스텀 CSS
+st.markdown(
+    """
+    <style>
+    /* 전체 앱 배경색을 파란색 계열로 변경 */
+    .stApp {
+        background-color: #EBF8FF;
+        color: #1A202C;
+    }
+    
+    /* 기본 글자색 및 타이틀/헤더 색상을 검정색으로 지정 */
+    h1, h2, h3, h4, h5, h6, p, label, div, span, li {
+        color: #1A202C !important;
+    }
+    
+    /* 카드 및 메트릭 배경을 하얀색으로 깔끔하게 처리하여 가독성 증대 */
+    [data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        border: 1px solid #CBD5E0;
+    }
+    
+    /* metric 내부 텍스트 색상 정리 */
+    [data-testid="stMetricLabel"] {
+        color: #2D3748 !important;
+        font-weight: bold;
+    }
+    [data-testid="stMetricValue"] {
+        color: #E53E3E !important;
+        font-weight: bold;
+    }
+    
+    /* 입력창 및 셀렉트박스 배경/글자색 조절 */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: #FFFFFF !important;
+        color: #1A202C !important;
+        border-radius: 8px;
+    }
+    
+    /* 탭 메뉴 디자인 스타일링 */
+    button[data-baseweb="tab"] {
+        font-weight: bold;
+        color: #2B6CB0 !important;
+    }
+    button[aria-selected="true"] {
+        color: #1A365D !important;
+        border-bottom-color: #2B6CB0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # 데이터 초기화 (Session State 사용)
 if "records" not in st.session_state:
     st.session_state.records = [
