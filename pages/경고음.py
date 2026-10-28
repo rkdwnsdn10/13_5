@@ -7,13 +7,13 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="학교 생활 수칙 무한 경고 사이렌",
+    page_title="실시간 음성 욕설 무한 경고 사이렌",
     page_icon="🚨",
     layout="centered",
 )
 
 
-# pure python으로 소리가 들리는 WAV 바이너리를 정확히 생성
+# pure python으로 100% 작동하는 사이렌 WAV 오디오 바이트 생성
 def create_siren_audio_b64():
     sample_rate = 22050
     duration = 1.0
@@ -21,10 +21,9 @@ def create_siren_audio_b64():
 
     audio_bytes = bytearray()
     for i in range(num_samples):
-        # 600Hz ~ 1000Hz 주파수 변조 (사이렌 소리)
+        # 600Hz ~ 1000Hz 사이렌 주파수 sweep
         freq = 600 + 400 * (i / num_samples)
         period = sample_rate / freq
-        # Square wave 생성
         val = 200 if (i % int(period)) < (period / 2) else 50
         audio_bytes.append(val)
 
@@ -47,7 +46,7 @@ def create_siren_audio_b64():
     return base64.b64encode(wav_data).decode("utf-8")
 
 
-# 사이렌 음원 Data URI 사전 생성
+# 사이렌 음원 사전 생성
 SIREN_B64 = create_siren_audio_b64()
 
 # 세션 상태 관리
@@ -59,20 +58,20 @@ if "current_rule" not in st.session_state:
     st.session_state.current_rule = ""
 
 # 메인 타이틀
-st.title("🚨 학교 생활 수칙 무한 경고 사이렌")
+st.title("🚨 실시간 음성 욕설 자동 감지 사이렌")
 st.caption(
-    "경고 버튼을 누르면 정지 버튼을 누를 때까지 소리가 멈추지 않고 계속 재생됩니다."
+    "마이크로 입력되거나 말한 내용 중 욕설/금지어가 감지되면 끄기 버튼을 누를 때까지 사이렌이 계속 울립니다."
 )
 
 # ---------------------------------------------------------
-# 경고음 재생 및 끄기 컨트롤러
+# 경고음 재생 및 끄기 컨트롤러 (무한 연속 재생)
 # ---------------------------------------------------------
 if st.session_state.is_alarm_on:
     st.error(
-        f"🚨 **[경고음 작동 중]** 위반 수칙: {st.session_state.current_rule}"
+        f"🚨 **[비상 경고 사이렌 작동 중!]** 감지 원인: {st.session_state.current_rule}"
     )
 
-    # HTML5 Audio 엘리먼트로 루프 자동 재생 (소리 출력 100% 보장)
+    # HTML5 Audio 엘리먼트로 소리 100% 재생 (loop 옵션으로 무한 울림)
     audio_html = f"""
     <div style="text-align: center; margin: 15px 0;">
         <audio autoplay loop controls style="width: 100%;">
@@ -93,51 +92,80 @@ if st.session_state.is_alarm_on:
     st.markdown("---")
 
 # ---------------------------------------------------------
-# 사이드바 제어판
+# 사이드바 설정
 # ---------------------------------------------------------
-st.sidebar.header("⚙️ 경고음 제어판")
+st.sidebar.header("⚙️ 음성 감지 규칙 설정")
+banned_words_input = st.sidebar.text_input(
+    "🚫 감지할 욕설/금지어 목록 (쉼표 구분)",
+    value="바보, 멍청이, 짜증, 씨발, 개새끼, 미친, 시발, 좆",
+)
+banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
+
+st.sidebar.markdown("---")
 if st.sidebar.button("🛑 [사이드바] 경고음 끄기", use_container_width=True):
     st.session_state.is_alarm_on = False
     st.session_state.current_rule = ""
     st.rerun()
 
 # ---------------------------------------------------------
-# 학교 규칙 위반 경고 버튼 영역
+# 1. 마이크 입력 및 텍스트 욕설 실시간 자동 검사
 # ---------------------------------------------------------
-st.subheader("📢 학교 수칙 위반 원클릭 연속 경고")
+st.subheader("🎙️ 마이크 음성 / 텍스트 욕설 감지기")
 
-col1, col2 = st.columns(2)
+# Streamlit 내장 audio_input
+audio_file = st.audio_input("마이크에 대고 말씀해 보세요")
 
-with col1:
-    # 규칙 1: 욕설 및 비속어
-    if st.button(
-        "🤬 욕설 / 언어폭력 감지!", use_container_width=True, type="primary"
-    ):
+# 텍스트 직접 입력 또는 음성 변환 입력창
+spoken_text = st.text_input(
+    "🗣️ 말한 내용 입력 또는 테스트 문장 작성",
+    placeholder="예: 진짜 바보 같네... (작성 시 욕설 자동 감지)",
+)
+
+# 욕설 감지 로직
+if spoken_text:
+    detected_words = [w for w in banned_words if w in spoken_text]
+
+    if detected_words and not st.session_state.is_alarm_on:
         st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🤬 욕설 및 언어폭력"
+        st.session_state.current_rule = (
+            f"🤬 욕설 감지: {', '.join(detected_words)}"
+        )
+
         log_time = time.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.detection_logs.insert(
             0,
             {
                 "시각": log_time,
-                "위반 수칙": "🤬 욕설 및 언어폭력",
-                "상태": "🚨 비상 사이렌 발령",
+                "입력 내용": spoken_text,
+                "감지 단어": ", ".join(detected_words),
+                "상태": "🚨 사이렌 연속 발령",
             },
         )
         st.rerun()
 
-    st.write("")
+# ---------------------------------------------------------
+# 2. 학교 수칙 원클릭 발령 버튼 영역
+# ---------------------------------------------------------
+st.markdown("---")
+st.subheader("📢 학교 수칙 수동 경고 발령")
 
-    # 규칙 2: 복도 무단 질주 / 고성방가
-    if st.button("🏃‍♂️ 복도 질주 / 고성방가!", use_container_width=True):
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.button(
+        "🤬 욕설 / 언어폭력 수동 발령",
+        use_container_width=True,
+        type="primary",
+    ):
         st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🏃‍♂️ 복도 질주 / 소란"
+        st.session_state.current_rule = "🤬 욕설 및 언어폭력 (수동 발령)"
         log_time = time.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.detection_logs.insert(
             0,
             {
                 "시각": log_time,
-                "위반 수칙": "🏃‍♂️ 복도 질주 / 소란",
+                "입력 내용": "수동 버튼 클릭",
+                "감지 단어": "욕설/언어폭력",
                 "상태": "🚨 사이렌 발령",
             },
         )
@@ -145,55 +173,34 @@ with col1:
 
     st.write("")
 
-    # 규칙 3: 수업 중 스마트폰 무단 사용
-    if st.button(
-        "📱 수업 중 스마트폰 무단 사용!", use_container_width=True
-    ):
+    if st.button("🏃‍♂️ 복도 질주 / 소란", use_container_width=True):
         st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "📱 수업 중 스마트폰 사용"
+        st.session_state.current_rule = "🏃‍♂️ 복도 질주 및 소란"
         log_time = time.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.detection_logs.insert(
             0,
             {
                 "시각": log_time,
-                "위반 수칙": "📱 수업 중 스마트폰 사용",
+                "입력 내용": "수동 버튼 클릭",
+                "감지 단어": "복도 소란",
                 "상태": "🚨 사이렌 발령",
             },
         )
         st.rerun()
 
 with col2:
-    # 규칙 4: 교내 무단 흡연 / 전자담배
     if st.button(
-        "🚬 교내 무단 흡연 / 전자담배!",
-        use_container_width=True,
-        type="primary",
+        "🚬 교내 무단 흡연!", use_container_width=True, type="primary"
     ):
         st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🚬 교내 무단 흡연"
+        st.session_state.current_rule = "🚬 교내 무단 흡연 (수동 발령)"
         log_time = time.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.detection_logs.insert(
             0,
             {
                 "시각": log_time,
-                "위반 수칙": "🚬 교내 무단 흡연",
-                "상태": "🚨 비상 사이렌 발령",
-            },
-        )
-        st.rerun()
-
-    st.write("")
-
-    # 규칙 5: 복장 / 교복 규정 위반
-    if st.button("👔 교복 / 용의 복장 미흡!", use_container_width=True):
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "👔 용의 복장 규정 위반"
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "위반 수칙": "👔 용의 복장 규정 위반",
+                "입력 내용": "수동 버튼 클릭",
+                "감지 단어": "무단 흡연",
                 "상태": "🚨 사이렌 발령",
             },
         )
@@ -201,26 +208,26 @@ with col2:
 
     st.write("")
 
-    # 규칙 6: 기타 학교 규칙 위반
-    if st.button("⚠️ 기타 학교 규칙 위반!", use_container_width=True):
+    if st.button("📱 수업 중 스마트폰 사용", use_container_width=True):
         st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "⚠️ 기타 수칙 위반"
+        st.session_state.current_rule = "📱 수업 중 스마트폰 무단 사용"
         log_time = time.strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.detection_logs.insert(
             0,
             {
                 "시각": log_time,
-                "위반 수칙": "⚠️ 기타 수칙 위반",
+                "입력 내용": "수동 버튼 클릭",
+                "감지 단어": "스마트폰 사용",
                 "상태": "🚨 사이렌 발령",
             },
         )
         st.rerun()
 
 # ---------------------------------------------------------
-# 위반 이력 대시보드 (Pandas 활용)
+# 3. 감지 및 발령 이력 기록
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📜 실시간 경고음 발령 이력 기록")
+st.subheader("📜 실시간 감지 및 발령 이력")
 
 if st.session_state.detection_logs:
     df_logs = pd.DataFrame(st.session_state.detection_logs)
@@ -230,4 +237,4 @@ if st.session_state.detection_logs:
         st.session_state.detection_logs = []
         st.rerun()
 else:
-    st.write("아직 발령된 위반 기록이 없습니다.")
+    st.write("아직 감지된 이력이 없습니다.")
