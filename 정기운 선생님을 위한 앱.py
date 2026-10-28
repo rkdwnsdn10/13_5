@@ -1,8 +1,9 @@
 import streamlit as st
 import datetime
+import requests
 
 # ---------------------------------------------------------
-# Page Configuration & CSS
+# Page Configuration & Warm Aesthetics CSS
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="정기운 선생님을 위한 Smart Classroom Dashboard",
@@ -12,396 +13,299 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* 1. 전체 배경: 따뜻한 파스텔 그래디언트 (아이보리~피치 샌드 톤) */
     .stApp {
-        background-color: #f8fafc;
-        background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-        background-size: 20px 20px;
+        background: linear-gradient(135deg, #fdfbf7 0%, #f5efe6 50%, #eef2e6 100%);
+        background-attachment: fixed;
     }
+    
+    /* 2. 상단 메인 배너: 따뜻한 오렌지 테라코타 그래디언트 */
     .school-banner {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        background: linear-gradient(135deg, #e07a5f 0%, #f4a261 100%);
         color: white;
-        padding: 25px 20px;
-        border-radius: 18px;
+        padding: 28px 24px;
+        border-radius: 20px;
         text-align: center;
-        box-shadow: 0 8px 15px -3px rgba(30, 58, 138, 0.15);
-        margin-bottom: 20px;
+        box-shadow: 0 10px 20px -5px rgba(224, 122, 95, 0.25);
+        margin-bottom: 24px;
     }
     .school-banner h1 {
-        font-size: 2.1rem;
+        font-size: 2.2rem;
         font-weight: 800;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         color: #ffffff;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     .school-banner p {
-        font-size: 1rem;
-        color: #e0f2fe;
+        font-size: 1.05rem;
+        color: #fff3eb;
         margin: 0;
+        font-weight: 500;
     }
+
+    /* 3. 상단 핵심 지표 카드 (따뜻한 부드러운 흰색 카드) */
     .top-card {
-        background: #ffffff;
-        border: 2px solid #cbd5e1;
-        padding: 18px 20px;
-        border-radius: 16px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(8px);
+        border: 1px solid #eadbc8;
+        padding: 20px;
+        border-radius: 18px;
+        box-shadow: 0 4px 12px rgba(180, 150, 120, 0.08);
         text-align: left;
+        transition: transform 0.2s ease;
     }
     .top-card-label {
-        font-size: 0.9rem;
-        color: #475569;
+        font-size: 0.95rem;
+        color: #7f5539;
         font-weight: 700;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
     .top-card-val {
-        font-size: 1.8rem;
+        font-size: 1.9rem;
         font-weight: 800;
-        color: #1e3a8a;
+        color: #9c6644;
     }
+
+    /* 4. 메인 컨텐츠 박스 */
     .content-box {
-        background-color: #ffffff;
-        padding: 22px;
-        border-radius: 18px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        padding: 24px;
+        border-radius: 20px;
+        border: 1px solid #e6ccb2;
+        box-shadow: 0 6px 15px rgba(180, 150, 120, 0.07);
         margin-bottom: 20px;
     }
     .box-title {
-        color: #1e293b;
-        font-size: 1.15rem;
+        color: #6b705c;
+        font-size: 1.2rem;
         font-weight: 800;
-        margin-bottom: 16px;
-        border-bottom: 3px solid #3b82f6;
-        padding-bottom: 6px;
+        margin-bottom: 18px;
+        border-bottom: 3px solid #ddbea9;
+        padding-bottom: 8px;
         display: inline-block;
     }
+
+    /* 5. 따뜻한 톤 알림 카드들 */
     .alert-item-warning {
-        background-color: #fef3c7;
-        color: #92400e;
-        padding: 12px 16px;
-        border-radius: 10px;
-        border-left: 5px solid #f59e0b;
-        margin-bottom: 10px;
-        font-size: 0.95rem;
+        background-color: #fff3b0;
+        color: #7f5539;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #e76f51;
+        margin-bottom: 12px;
+        font-size: 0.98rem;
     }
     .alert-item-danger {
-        background-color: #fee2e2;
-        color: #991b1b;
-        padding: 12px 16px;
-        border-radius: 10px;
-        border-left: 5px solid #ef4444;
-        margin-bottom: 10px;
-        font-size: 0.95rem;
+        background-color: #ffe5d9;
+        color: #9d0208;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #d00000;
+        margin-bottom: 12px;
+        font-size: 0.98rem;
     }
     .alert-item-info {
-        background-color: #f3e8ff;
-        color: #6b21a8;
-        padding: 12px 16px;
-        border-radius: 10px;
-        border-left: 5px solid #a855f7;
-        margin-bottom: 10px;
-        font-size: 0.95rem;
+        background-color: #f0efeb;
+        color: #432818;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #99582a;
+        margin-bottom: 12px;
+        font-size: 0.98rem;
     }
     .alert-item-success {
-        background-color: #dcfce7;
-        color: #166534;
-        padding: 12px 16px;
-        border-radius: 10px;
-        border-left: 5px solid #22c55e;
-        margin-bottom: 10px;
-        font-size: 0.95rem;
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        padding: 14px 18px;
+        border-radius: 12px;
+        border-left: 5px solid #66bb6a;
+        margin-bottom: 12px;
+        font-size: 0.98rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 중앙 데이터 저장소 (모든 페이지 실시간 공유용)
+# Cloud DB API Helper Functions
 # ---------------------------------------------------------
-if "alarm_count" not in st.session_state:
-    st.session_state["alarm_count"] = 0
+JSONBIN_URL = "https://api.jsonbin.io/v3/b/66fa1e17e41b4d34e439f012"
 
-if "demerits" not in st.session_state:
-    st.session_state["demerits"] = []
-
-if "anonymous_letters" not in st.session_state:
-    st.session_state["anonymous_letters"] = []
-
-if "cleaning_zones" not in st.session_state:
-    st.session_state["cleaning_zones"] = {
-        "교실 바닥": "확인 필요",
-        "책상 주변": "확인 필요",
-        "쓰레기통": "확인 필요",
-        "분리수거": "확인 필요",
-        "칠판·교탁": "확인 필요",
-        "창가·사물함": "확인 필요"
+def load_cloud_data():
+    try:
+        res = requests.get(JSONBIN_URL, headers={"X-Bin-Meta": "false"}, timeout=3)
+        if res.status_code == 200:
+            return res.json()
+    except Exception:
+        pass
+    return {
+        "alarm_count": 0,
+        "demerits": [],
+        "anonymous_letters": [],
+        "cleaning_zones": {
+            "교실 바닥": "확인 필요", "책상 주변": "확인 필요", "쓰레기통": "확인 필요",
+            "분리수거": "확인 필요", "칠판·교탁": "확인 필요", "창가·사물함": "확인 필요"
+        }
     }
 
-# ---------------------------------------------------------
-# 사이드바 메뉴 (이미지 요청 항목과 100% 동일)
-# ---------------------------------------------------------
-st.sidebar.markdown("### 🏫 정기운 선생님을 위한 앱")
-menu = st.sidebar.radio(
-    "페이지 선택:",
-    ["📢 메인 페이지", "🔔 경고음", "📋 벌점제도", "📮 익명소통함", "🧹 청소상태 체크 프로그램"]
-)
+# 데이터 실시간 로드
+cloud_data = load_cloud_data()
+st.session_state["alarm_count"] = cloud_data.get("alarm_count", 0)
+st.session_state["demerits"] = cloud_data.get("demerits", [])
+st.session_state["anonymous_letters"] = cloud_data.get("anonymous_letters", [])
+st.session_state["cleaning_zones"] = cloud_data.get("cleaning_zones", {})
 
 # ---------------------------------------------------------
-# 1. 메인 페이지
+# 메인 대시보드 UI
 # ---------------------------------------------------------
-if menu == "📢 메인 페이지":
-    tab1, tab2 = st.tabs(["📊 메인 대시보드", "📖 앱 소개 & 사용 설명"])
+tab1, tab2 = st.tabs(["🌾 메인 대시보드", "☕ 앱 소개 & 사용 설명"])
 
-    with tab1:
+with tab1:
+    st.markdown(f"""
+    <div class="school-banner">
+        <h1>🏫 1학년 13반 Warm Classroom</h1>
+        <p>정기운 선생님을 위한 실시간 학급 관리 통합 대시보드 · {datetime.date.today().strftime("%Y년 %m월 %d일")}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 청소 상태 연동
+    total_zones = len(st.session_state["cleaning_zones"])
+    clean_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "깨끗함"]
+    needed_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "확인 필요"]
+    completion_rate = int((len(clean_zones) / total_zones) * 100) if total_zones > 0 else 0
+
+    # 상단 요약 카운터
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
         st.markdown(f"""
-        <div class="school-banner">
-            <h1>🏫 1학년 13반 Smart Classroom</h1>
-            <p>정기운 선생님을 위한 실시간 학급 관리 통합 대시보드 · {datetime.date.today().strftime("%Y년 %m월 %d일")}</p>
+        <div class="top-card">
+            <div class="top-card-label">🔔 오늘 발생 경고음</div>
+            <div class="top-card-val">{st.session_state['alarm_count']} 회</div>
         </div>
         """, unsafe_allow_html=True)
 
-        # 청소 완료율 및 필요 구역 계산
-        total_zones = len(st.session_state["cleaning_zones"])
-        clean_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "깨끗함"]
-        needed_zones = [z for z, status in st.session_state["cleaning_zones"].items() if status == "확인 필요"]
-        completion_rate = int((len(clean_zones) / total_zones) * 100)
+    with col2:
+        st.markdown(f"""
+        <div class="top-card">
+            <div class="top-card-label">💌 도착한 익명 편지</div>
+            <div class="top-card-val">{len(st.session_state['anonymous_letters'])} 개</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # 상단 실시간 카운터
-        col1, col2, col3, col4 = st.columns(4)
+    with col3:
+        st.markdown(f"""
+        <div class="top-card">
+            <div class="top-card-label">⚠️ 벌점 수여 학생</div>
+            <div class="top-card-val">{len(st.session_state['demerits'])} 명</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with col1:
-            st.markdown(f"""
-            <div class="top-card">
-                <div class="top-card-label">🔔 오늘 발생 경고음</div>
-                <div class="top-card-val">{st.session_state['alarm_count']} 회</div>
-            </div>
-            """, unsafe_allow_html=True)
+    with col4:
+        st.markdown(f"""
+        <div class="top-card">
+            <div class="top-card-label">🧹 청소 필요 구역</div>
+            <div class="top-card-val">{len(needed_zones)} 곳</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with col2:
-            st.markdown(f"""
-            <div class="top-card">
-                <div class="top-card-label">💌 도착한 익명 편지</div>
-                <div class="top-card-val">{len(st.session_state['anonymous_letters'])} 개</div>
-            </div>
-            """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-        with col3:
-            st.markdown(f"""
-            <div class="top-card">
-                <div class="top-card-label">⚠️ 벌점 수여 학생</div>
-                <div class="top-card-val">{len(st.session_state['demerits'])} 명</div>
-            </div>
-            """, unsafe_allow_html=True)
+    # 하단 알림 피드
+    left_col, right_col = st.columns([1.2, 0.8])
 
-        with col4:
-            st.markdown(f"""
-            <div class="top-card">
-                <div class="top-card-label">🧹 청소 필요 구역</div>
-                <div class="top-card-val">{len(needed_zones)} 곳</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 하단 실시간 연동 알림 피드
-        left_col, right_col = st.columns([1.2, 0.8])
-
-        with left_col:
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown('<div class="box-title">📢 실시간 학급 주요 알림</div>', unsafe_allow_html=True)
-            
-            # 1) 청소 상태 연동
-            if needed_zones:
-                zones_str = ", ".join(needed_zones)
-                st.markdown(f"""
-                <div class="alert-item-warning">
-                    <b>🧹 청소 상태 알림</b><br>
-                    {zones_str} 구역 점검이 필요합니다. (청소 완료율: {completion_rate}%)
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="alert-item-success">
-                    <b>🧹 청소 완료 알림</b><br>
-                    모든 구역 청소가 '깨끗함' 상태입니다! (완료율 100%)
-                </div>
-                """, unsafe_allow_html=True)
-
-            # 2) 벌점 연동
-            if st.session_state["demerits"]:
-                demerit_details = "<br>".join([f"<b>{d['학생']}</b> 학생 (사유: {d['사유']} / 벌점 {d['벌점']}점)" for d in st.session_state["demerits"]])
-                st.markdown(f"""
-                <div class="alert-item-danger">
-                    <b>⚠️ 벌점 수여 알림</b><br>
-                    {demerit_details}
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="alert-item-success">
-                    <b>⚠️ 벌점 관리 현황</b><br>
-                    현재 부과된 벌점 내역이 없습니다.
-                </div>
-                """, unsafe_allow_html=True)
-
-            # 3) 익명 편지 연동
-            letter_count = len(st.session_state["anonymous_letters"])
-            if letter_count > 0:
-                latest = st.session_state["anonymous_letters"][-1]
-                st.markdown(f"""
-                <div class="alert-item-info">
-                    <b>💌 익명소통함 알림</b><br>
-                    새로운 편지가 총 <b>{letter_count}건</b> 도착했습니다! (최신: [{latest['category']}] "{latest['content'][:25]}...")
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown("""
-                <div class="alert-item-info">
-                    <b>💌 익명소통함 알림</b><br>
-                    현재 도착한 익명 편지가 없습니다.
-                </div>
-                """, unsafe_allow_html=True)
-
-            # 4) 경고음 연동
+    with left_col:
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown('<div class="box-title">📢 실시간 학급 주요 알림</div>', unsafe_allow_html=True)
+        
+        # 1) 청소 상태
+        if needed_zones:
+            zones_str = ", ".join(needed_zones)
             st.markdown(f"""
             <div class="alert-item-warning">
-                <b>🔔 경고음 발생 알림</b><br>
-                오늘 수업 시간 집중 유도 경고음이 총 <b>{st.session_state['alarm_count']}회</b> 발생했습니다.
+                <b>🧹 청소 상태 알림</b><br>
+                {zones_str} 구역 점검이 필요합니다. (청소 완료율: {completion_rate}%)
             </div>
             """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="alert-item-success">
+                <b>🧹 청소 완료 알림</b><br>
+                모든 구역 청소가 '깨끗함' 상태입니다! (완료율 100%)
+            </div>
+            """, unsafe_allow_html=True)
 
-        with right_col:
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown('<div class="box-title">📋 4대 학급 기능 항목 요약</div>', unsafe_allow_html=True)
-
+        # 2) 벌점 내역
+        if st.session_state["demerits"]:
+            demerit_details = "<br>".join([f"<b>{d.get('학생','미상')}</b> 학생 (사유: {d.get('사유','-')} / 벌점 {d.get('벌점',1)}점)" for d in st.session_state["demerits"]])
             st.markdown(f"""
-            * **🔔 경고음 카운트**: `{st.session_state['alarm_count']}회` 누적
-            * **⚠️ 벌점 관리**: `{len(st.session_state['demerits'])}명` 부과
-            * **💌 익명소통함**: `{len(st.session_state['anonymous_letters'])}건` 수신
-            * **🧹 청소 평가**: `{len(needed_zones)}구역` 점검 필요 (완료율 `{completion_rate}%`)
-            """)
-            st.markdown('</div>', unsafe_allow_html=True)
+            <div class="alert-item-danger">
+                <b>⚠️ 벌점 수여 알림</b><br>
+                {demerit_details}
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="alert-item-success">
+                <b>⚠️ 벌점 관리 현황</b><br>
+                현재 부과된 벌점 내역이 없습니다.
+            </div>
+            """, unsafe_allow_html=True)
 
-    with tab2:
-        st.markdown('<div class="content-box">', unsafe_allow_html=True)
-        st.markdown('<div class="box-title">💌 정기운 선생님께 드리는 글</div>', unsafe_allow_html=True)
-        st.success("""
-        ### 👋 매일 학생들을 챙기느라 바쁘신 정기운 선생님!
+        # 3) 익명 편지
+        letter_count = len(st.session_state["anonymous_letters"])
+        if letter_count > 0:
+            latest = st.session_state["anonymous_letters"][-1]
+            st.markdown(f"""
+            <div class="alert-item-info">
+                <b>💌 익명소통함 알림</b><br>
+                새로운 편지가 총 <b>{letter_count}건</b> 도착했습니다! (최신: [{latest.get('category','의견')}] "{latest.get('content','')[:25]}...")
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div class="alert-item-info">
+                <b>💌 익명소통함 알림</b><br>
+                현재 도착한 익명 편지가 없습니다.
+            </div>
+            """, unsafe_allow_html=True)
 
-        저희가 선생님을 위해 선생님을 돕는 앱을 만들었어요.  
-        이 앱을 선생님이 잘 이용해 주시기를 바래요.
-
-        이 앱은 총 4가지 기능이 있고 선생님의 필요에 따라 페이지에 들어가서 사용하시면 돼요.  
-        잘 사용 하시길 바래요. ✨
-        """)
+        # 4) 경고음 발생
+        st.markdown(f"""
+        <div class="alert-item-warning">
+            <b>🔔 경고음 발생 알림</b><br>
+            오늘 수업 시간 집중 유도 경고음이 총 <b>{st.session_state['alarm_count']}회</b> 발생했습니다.
+        </div>
+        """, unsafe_allow_html=True)
+        
         st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------------------------------------------------
-# 2. 경고음 기능 페이지 (실시간 즉시 연동)
-# ---------------------------------------------------------
-elif menu == "🔔 경고음":
-    st.title("🔔 경고음 컨트롤러")
-    st.write("버튼을 누르면 메인 대시보드의 경고음 횟수가 즉시 올라갑니다.")
+    with right_col:
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.markdown('<div class="box-title">📋 4대 학급 기능 항목 요약</div>', unsafe_allow_html=True)
 
-    st.subheader(f"오늘 누적 경고음 횟수: {st.session_state['alarm_count']} 회")
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        if st.button("🚨 경고음 울리기 (+1)", use_container_width=True):
-            st.session_state["alarm_count"] += 1
-            st.success("🚨 경고음 횟수가 1회 추가되어 메인 대시보드에 즉시 반영되었습니다!")
-            st.rerun()  # ★ 핵심: 즉시 메인 대시보드에 데이터 동기화
-
-    with col_b:
-        if st.button("🔄 카운트 리셋 (0회)", use_container_width=True):
-            st.session_state["alarm_count"] = 0
-            st.toast("경고음 횟수가 초기화되었습니다.")
-            st.rerun()
-
-# ---------------------------------------------------------
-# 3. 벌점제도 기능 페이지 (실시간 즉시 연동)
-# ---------------------------------------------------------
-elif menu == "📋 벌점제도":
-    st.title("📋 벌점제도 관리")
-    st.write("학생 벌점을 작성하면 메인 대시보드 알림 피드에 즉시 추가됩니다.")
-
-    with st.form("demerit_form", clear_on_submit=True):
-        student = st.text_input("학생 이름")
-        reason = st.text_area("벌점 부여 사유")
-        points = st.number_input("부여 벌점", min_value=1, max_value=10, value=1)
+        st.markdown(f"""
+        * **🔔 경고음 카운트**: `{st.session_state['alarm_count']}회` 누적
+        * **⚠️ 벌점 관리**: `{len(st.session_state['demerits'])}명` 부과
+        * **💌 익명소통함**: `{len(st.session_state['anonymous_letters'])}건` 수신
+        * **🧹 청소 평가**: `{len(needed_zones)}구역` 점검 필요 (완료율 `{completion_rate}%`)
+        """)
         
-        if st.form_submit_button("벌점 부여 및 메인 대시보드 연동"):
-            if student.strip() and reason.strip():
-                st.session_state["demerits"].append({
-                    "학생": student.strip(),
-                    "사유": reason.strip(),
-                    "벌점": points
-                })
-                st.success(f"'{student}' 학생의 벌점이 등록되어 메인 대시보드 알림에 반영되었습니다!")
-                st.rerun()  # ★ 핵심: 메인 알림 피드 동기화
-            else:
-                st.warning("학생 이름과 사유를 입력해 주세요.")
+        st.markdown("<hr>", unsafe_allow_html=True)
+        if st.button("🔄 대시보드 실시간 새로고침", use_container_width=True):
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
-    st.subheader("📜 현재 벌점 부과 목록")
-    if st.session_state["demerits"]:
-        st.dataframe(st.session_state["demerits"], use_container_width=True)
-    else:
-        st.info("현재 부과된 벌점 내역이 없습니다.")
+with tab2:
+    st.markdown('<div class="content-box">', unsafe_allow_html=True)
+    st.markdown('<div class="box-title">💌 정기운 선생님께 드리는 글</div>', unsafe_allow_html=True)
+    st.success("""
+    ### 👋 매일 학생들을 챙기느라 바쁘신 정기운 선생님!
 
-# ---------------------------------------------------------
-# 4. 익명소통함 기능 페이지 (실시간 즉시 연동)
-# ---------------------------------------------------------
-elif menu == "📮 익명소통함":
-    st.title("📮 익명소통함 (우리 반 마음우체통)")
-    st.write("편지를 쓰면 메인 대시보드의 도착 편지 수량과 최신 알림이 즉시 바뀝니다.")
+    저희가 선생님을 위해 선생님을 돕는 앱을 만들었어요.  
+    이 앱을 선생님이 잘 이용해 주시기를 바래요.
 
-    category = st.selectbox("의견 종류", ["💭 고민 상담", "💡 학급 건의", "👍 칭찬하기", "💬 기타"])
-    content = st.text_area("전하고 싶은 내용을 적어주세요")
-    agree = st.checkbox("개인정보를 포함하지 않았음을 확인합니다.")
-
-    if st.button("💌 익명으로 편지 제출하기"):
-        if not agree:
-            st.warning("개인정보 확인 체크박스를 선택해 주세요.")
-        elif not content.strip():
-            st.warning("내용을 입력해주세요.")
-        else:
-            st.session_state["anonymous_letters"].append({
-                "category": category,
-                "content": content.strip(),
-                "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-            })
-            st.success("편지가 제출되어 메인 대시보드 알림에 즉시 반영되었습니다!")
-            st.rerun()  # ★ 핵심: 메인 편지 알림 동기화
-
-    st.markdown("---")
-    st.subheader("📬 도착한 익명 편지 목록 (선생님 확인용)")
-    if st.session_state["anonymous_letters"]:
-        for idx, letter in enumerate(reversed(st.session_state["anonymous_letters"])):
-            with st.expander(f"✉️ 편지 #{len(st.session_state['anonymous_letters'])-idx} [{letter['category']}] ({letter['date']})"):
-                st.write(letter["content"])
-    else:
-        st.info("현재 도착한 익명 편지가 없습니다.")
-
-# ---------------------------------------------------------
-# 5. 청소상태 체크 프로그램 (실시간 즉시 연동)
-# ---------------------------------------------------------
-elif menu == "🧹 청소상태 체크 프로그램":
-    st.title("🧹 청소상태 체크 프로그램")
-    st.write("체크박스를 변경할 때마다 메인 대시보드의 청소 완료율과 점검 필요 구역 알림이 즉시 변경됩니다.")
-
-    cols = st.columns(3)
-    zones = list(st.session_state["cleaning_zones"].keys())
-
-    for idx, z in enumerate(zones):
-        with cols[idx % 3]:
-            with st.container(border=True):
-                st.markdown(f"### {z}")
-                is_clean = st.checkbox("깨끗함 완료", value=(st.session_state["cleaning_zones"][z] == "깨끗함"), key=f"chk_zone_{z}")
-                
-                new_status = "깨끗함" if is_clean else "확인 필요"
-                if new_status != st.session_state["cleaning_zones"][z]:
-                    st.session_state["cleaning_zones"][z] = new_status
-                    st.rerun()  # ★ 핵심: 청소 상태 즉시 메인에 반영
-
-                status_color = "🟢" if is_clean else "🟡"
-                st.write(f"현재 상태: {status_color} **{st.session_state['cleaning_zones'][z]}**")
+    이 앱은 총 4가지 기능이 있고 선생님의 필요에 따라 좌측 사이드바 메뉴에 들어가서 사용하시면 돼요.  
+    잘 사용 하시길 바래요. ✨
+    """)
+    st.markdown('</div>', unsafe_allow_html=True)
