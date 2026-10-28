@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="학교 생활 수칙 무한 경고 사이렌",
+    page_title="학교 생활 수칙 음성 & 원클릭 경고 사이렌",
     page_icon="🚨",
     layout="centered",
 )
@@ -16,7 +16,7 @@ if "detection_logs" not in st.session_state:
 
 st.title("🚨 학교 생활 수칙 음성 & 원클릭 경고 사이렌")
 st.caption(
-    "욕설은 마이크로 자동 감지하고, 기타 학교 규칙은 버튼을 클릭하면 끄기 전까지 사이렌이 계속 울립니다."
+    "마이크 감지를 켜고 끌 수 있으며, 욕설 자동 감지 및 9대 수칙 원클릭 경고를 제공합니다."
 )
 
 # 사이드바 설정
@@ -29,7 +29,7 @@ banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
 banned_words_js = str(banned_words)
 
 # ---------------------------------------------------------
-# 마이크 음성 감지 & 무한 사이렌 통합 오디오 엔진
+# 마이크 ON/OFF 스위치 및 무한 사이렌 통합 엔진
 # ---------------------------------------------------------
 full_engine_html = f"""
 <!DOCTYPE html>
@@ -45,18 +45,26 @@ full_engine_html = f"""
             font-family: 'Malgun Gothic', sans-serif;
         }}
         .btn {{
-            background-color: #FF4B4B;
             color: white;
             border: none;
-            padding: 12px 24px;
-            font-size: 16px;
+            padding: 12px 20px;
+            font-size: 15px;
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
-            margin: 5px;
+            margin: 4px;
+        }}
+        .btn-start {{
+            background-color: #2b8a3e;
+        }}
+        .btn-pause {{
+            background-color: #fd7e14;
+        }}
+        .btn-siren {{
+            background-color: #e03131;
         }}
         .btn-stop {{
-            background-color: #333333;
+            background-color: #343a40;
         }}
         .status-box {{
             font-size: 16px;
@@ -83,12 +91,14 @@ full_engine_html = f"""
 </head>
 <body>
     <div class="container">
-        <h3>🎙️ 실시간 욕설/비속어 마이크 자동 감지기</h3>
-        <button id="startBtn" class="btn" onclick="startContinuousListening()">▶️ 마이크 욕설 감지 시작</button>
-        <button id="triggerManualBtn" class="btn" onclick="triggerSirenLoop('수동 버튼 클릭 발령')">🚨 비상 사이렌 수동 켜기</button>
+        <h3>🎙️ 실시간 마이크 음성 감지 컨트롤러</h3>
+        
+        <button id="startBtn" class="btn btn-start" onclick="startContinuousListening()">▶️ 마이크 감지 켜기 (ON)</button>
+        <button id="pauseBtn" class="btn btn-pause" onclick="stopContinuousListening()" disabled>⏸️ 마이크 감지 끄기 (OFF)</button>
+        <button id="triggerManualBtn" class="btn btn-siren" onclick="triggerSirenLoop('수동 사이렌 발령')">🚨 비상 사이렌 켜기</button>
         <button id="stopAlarmBtn" class="btn btn-stop" onclick="stopAlarmSound()">🛑 경고음 끄기 (소리 정지)</button>
         
-        <div id="status" class="status-box">상태: 마이크 대기 중 ('▶️ 마이크 욕설 감지 시작'을 누르세요)</div>
+        <div id="status" class="status-box">상태: ⚪ 마이크가 꺼져 있습니다 ('▶️ 마이크 감지 켜기'를 누르세요)</div>
         <div id="transcript" class="transcript-box">마이크 인식 내용이 여기에 실시간으로 표시됩니다...</div>
     </div>
 
@@ -180,10 +190,11 @@ full_engine_html = f"""
             if (audioCtx) {{
                 audioCtx.suspend();
             }}
-            document.getElementById('status').innerText = isListening ? "상태: 🟢 욕설 마이크 감지 중..." : "상태: 마이크 대기 중";
-            document.getElementById('status').style.color = isListening ? "green" : "#d90429";
+            document.getElementById('status').innerText = isListening ? "상태: 🟢 마이크 켜짐 (욕설 감지 활성화)" : "상태: ⚪ 마이크가 꺼져 있습니다";
+            document.getElementById('status').style.color = isListening ? "green" : "#343a40";
         }}
 
+        // 마이크 감지 켜기 (ON)
         function startContinuousListening() {{
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {{
@@ -206,9 +217,10 @@ full_engine_html = f"""
 
             recognition.onstart = function() {{
                 isListening = true;
-                document.getElementById('status').innerText = "상태: 🟢 욕설 마이크 항시 감지 중...";
+                document.getElementById('status').innerText = "상태: 🟢 마이크 켜짐 (욕설 감지 활성화)";
                 document.getElementById('status').style.color = "green";
                 document.getElementById('startBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = false;
             }};
 
             recognition.onresult = function(event) {{
@@ -242,6 +254,18 @@ full_engine_html = f"""
 
             recognition.start();
         }}
+
+        // 마이크 감지 끄기 (OFF)
+        function stopContinuousListening() {{
+            isListening = false;
+            if (recognition) {{
+                recognition.stop();
+            }}
+            document.getElementById('status').innerText = "상태: ⚪ 마이크가 꺼져 있습니다";
+            document.getElementById('status').style.color = "#343a40";
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }}
     </script>
 </body>
 </html>
@@ -255,7 +279,7 @@ components.html(full_engine_html, height=310)
 st.markdown("---")
 st.subheader("📢 학교 수칙 위반 원클릭 경고 버튼")
 st.caption(
-    "아래 버튼을 누르면 이력에 즉시 기록되며, 화면 상단의 비상 사이렌이 울립니다."
+    "위반 수칙 버튼을 누르면 이력에 즉시 기록되며, 화면 상단의 비상 사이렌이 울립니다."
 )
 
 
@@ -279,7 +303,7 @@ with col1:
     ):
         log_violation("🚬 교내 무단 흡연")
         st.warning(
-            "🚨 '교내 무단 흡연' 사이렌이 발령되었습니다. 상단 오디오 판의 '🚨 비상 사이렌 수동 켜기'를 눌러 연속 소리를 울릴 수 있습니다."
+            "🚨 '교내 무단 흡연' 사이렌이 발령되었습니다. 상단 오디오 판의 '🚨 비상 사이렌 켜기'를 누르면 사이렌이 지속 발령됩니다."
         )
 
     st.write("")
@@ -295,13 +319,17 @@ with col1:
         st.info("🚨 '복도 질주 및 소란' 위반이 기록되었습니다.")
 
 with col2:
-    if st.button("🏃‍♀️ 무단 외출 / 월담!", use_container_width=True, type="primary"):
+    if st.button(
+        "🏃‍♀️ 무단 외출 / 월담!", use_container_width=True, type="primary"
+    ):
         log_violation("🏃‍♀️ 무단 외출 및 월담")
         st.warning("🚨 '무단 외출 / 월담' 위반이 기록되었습니다.")
 
     st.write("")
 
-    if st.button("👊 교내 폭력 / 위협!", use_container_width=True, type="primary"):
+    if st.button(
+        "👊 교내 폭력 / 위협!", use_container_width=True, type="primary"
+    ):
         log_violation("👊 교내 폭력 및 위협")
         st.warning("🚨 '교내 폭력 및 위협' 위반이 기록되었습니다.")
 
