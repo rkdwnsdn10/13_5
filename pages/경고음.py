@@ -1,5 +1,3 @@
-import base64
-import struct
 import time
 import pandas as pd
 import streamlit as st
@@ -7,93 +5,23 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="실시간 음성 욕설 무한 경고 사이렌",
+    page_title="실시간 음성 항시 감지 무한 사이렌",
     page_icon="🚨",
     layout="centered",
 )
 
-
-# pure python으로 100% 작동하는 사이렌 WAV 오디오 바이트 생성
-def create_siren_audio_b64():
-    sample_rate = 22050
-    duration = 1.0
-    num_samples = int(sample_rate * duration)
-
-    audio_bytes = bytearray()
-    for i in range(num_samples):
-        # 600Hz ~ 1000Hz 사이렌 주파수 sweep
-        freq = 600 + 400 * (i / num_samples)
-        period = sample_rate / freq
-        val = 200 if (i % int(period)) < (period / 2) else 50
-        audio_bytes.append(val)
-
-    # 8-bit Mono PCM WAV 헤더 패킹
-    header = bytearray()
-    header.extend(b"RIFF")
-    header.extend(struct.pack("<I", 36 + len(audio_bytes)))
-    header.extend(b"WAVEfmt ")
-    header.extend(struct.pack("<I", 16))
-    header.extend(struct.pack("<H", 1))
-    header.extend(struct.pack("<H", 1))
-    header.extend(struct.pack("<I", sample_rate))
-    header.extend(struct.pack("<I", sample_rate))
-    header.extend(struct.pack("<H", 1))
-    header.extend(struct.pack("<H", 8))
-    header.extend(b"data")
-    header.extend(struct.pack("<I", len(audio_bytes)))
-
-    wav_data = header + audio_bytes
-    return base64.b64encode(wav_data).decode("utf-8")
-
-
-# 사이렌 음원 사전 생성
-SIREN_B64 = create_siren_audio_b64()
-
-# 세션 상태 관리
+# 세션 이력 관리
 if "detection_logs" not in st.session_state:
     st.session_state.detection_logs = []
-if "is_alarm_on" not in st.session_state:
-    st.session_state.is_alarm_on = False
-if "current_rule" not in st.session_state:
-    st.session_state.current_rule = ""
+if "last_detected" not in st.session_state:
+    st.session_state.last_detected = ""
 
-# 메인 타이틀
-st.title("🚨 실시간 음성 욕설 자동 감지 사이렌")
+st.title("🚨 실시간 음성 항시 감지 & 무한 사이렌")
 st.caption(
-    "마이크로 입력되거나 말한 내용 중 욕설/금지어가 감지되면 끄기 버튼을 누를 때까지 사이렌이 계속 울립니다."
+    "마이크를 켜두면 항상 켜진 상태로 음성을 분석하며, 욕설 감지 시 끄기 전까지 사이렌이 계속 울립니다."
 )
 
-# ---------------------------------------------------------
-# 경고음 재생 및 끄기 컨트롤러 (무한 연속 재생)
-# ---------------------------------------------------------
-if st.session_state.is_alarm_on:
-    st.error(
-        f"🚨 **[비상 경고 사이렌 작동 중!]** 감지 원인: {st.session_state.current_rule}"
-    )
-
-    # HTML5 Audio 엘리먼트로 소리 100% 재생 (loop 옵션으로 무한 울림)
-    audio_html = f"""
-    <div style="text-align: center; margin: 15px 0;">
-        <audio autoplay loop controls style="width: 100%;">
-            <source src="data:audio/wav;base64,{SIREN_B64}" type="audio/wav">
-            브라우저가 오디오 재생을 지원하지 않습니다.
-        </audio>
-    </div>
-    """
-    components.html(audio_html, height=75)
-
-    if st.button(
-        "🛑 경고음 즉시 끄기 (정지)", type="primary", use_container_width=True
-    ):
-        st.session_state.is_alarm_on = False
-        st.session_state.current_rule = ""
-        st.rerun()
-
-    st.markdown("---")
-
-# ---------------------------------------------------------
 # 사이드바 설정
-# ---------------------------------------------------------
 st.sidebar.header("⚙️ 음성 감지 규칙 설정")
 banned_words_input = st.sidebar.text_input(
     "🚫 감지할 욕설/금지어 목록 (쉼표 구분)",
@@ -101,133 +29,234 @@ banned_words_input = st.sidebar.text_input(
 )
 banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🛑 [사이드바] 경고음 끄기", use_container_width=True):
-    st.session_state.is_alarm_on = False
-    st.session_state.current_rule = ""
-    st.rerun()
+# 자바스크립트 전용 배열 포맷 변환
+banned_words_js = str(banned_words)
 
 # ---------------------------------------------------------
-# 1. 마이크 입력 및 텍스트 욕설 실시간 자동 검사
+# 통합 항시 음성 감지 & 무한 사이렌 자바스크립트 엔진
 # ---------------------------------------------------------
-st.subheader("🎙️ 마이크 음성 / 텍스트 욕설 감지기")
+full_engine_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .container {{
+            border: 2px solid #FF4B4B;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #FFF5F5;
+            text-align: center;
+            font-family: 'Malgun Gothic', sans-serif;
+        }}
+        .btn {{
+            background-color: #FF4B4B;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }}
+        .btn-stop {{
+            background-color: #333333;
+        }}
+        .status-box {{
+            font-size: 17px;
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #ffffff;
+            border: 1px solid #ffccd5;
+            color: #d90429;
+        }}
+        .transcript-box {{
+            margin-top: 10px;
+            padding: 10px;
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #222;
+            min-height: 45px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3>🎙️ 실시간 마이크 항시 감지 및 알림</h3>
+        <button id="startBtn" class="btn" onclick="startContinuousListening()">▶️ 마이크 항시 감지 시작</button>
+        <button id="stopAlarmBtn" class="btn btn-stop" onclick="stopAlarmSound()">🛑 경고음 끄기 (소리 정지)</button>
+        
+        <div id="status" class="status-box">상태: 감지 대기 중 (시작 버튼을 눌러주세요)</div>
+        <div id="transcript" class="transcript-box">마이크로 하시는 말씀이 여기에 실시간으로 표시됩니다...</div>
+    </div>
 
-# Streamlit 내장 audio_input
-audio_file = st.audio_input("마이크에 대고 말씀해 보세요")
+    <script>
+        let recognition = null;
+        let isListening = false;
+        let alarmInterval = null;
+        let audioCtx = null;
+        const bannedWords = {banned_words_js};
 
-# 텍스트 직접 입력 또는 음성 변환 입력창
-spoken_text = st.text_input(
-    "🗣️ 말한 내용 입력 또는 테스트 문장 작성",
-    placeholder="예: 진짜 바보 같네... (작성 시 욕설 자동 감지)",
+        // 연속 사이렌 오디오 발령
+        function triggerSirenLoop() {{
+            if (!audioCtx) {{
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }}
+            if (audioCtx && audioCtx.state === 'suspended') {{
+                audioCtx.resume();
+            }}
+
+            if (alarmInterval) return; // 이미 울리고 있다면 중복 방지
+
+            function playSirenTone() {{
+                if (!audioCtx) return;
+                const masterGain = audioCtx.createGain();
+                masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
+                masterGain.connect(audioCtx.destination);
+
+                [600, 900, 1200].forEach((baseFreq, i) => {{
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
+
+                    osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, audioCtx.currentTime + 0.3);
+                    osc.frequency.linearRampToValueAtTime(baseFreq, audioCtx.currentTime + 0.6);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, audioCtx.currentTime + 0.9);
+
+                    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.95);
+                }});
+            }}
+
+            playSirenTone();
+            alarmInterval = setInterval(playSirenTone, 1000); // 1초 간격 무한 반복
+        }}
+
+        // 사이렌 정지
+        function stopAlarmSound() {{
+            if (alarmInterval) {{
+                clearInterval(alarmInterval);
+                alarmInterval = null;
+            }}
+            if (audioCtx) {{
+                audioCtx.suspend();
+            }}
+            document.getElementById('status').innerText = isListening ? "상태: 🟢 마이크 항시 감지 중..." : "상태: 감지 대기 중";
+            document.getElementById('status').style.color = isListening ? "green" : "#d90429";
+        }}
+
+        // 실시간 항시 음성 감지
+        function startContinuousListening() {{
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {{
+                alert("이 브라우저는 음성 인식을 지원하지 않습니다. Chrome(크롬) 브라우저를 이용해 주세요.");
+                return;
+            }}
+
+            if (!audioCtx) {{
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }}
+            if (audioCtx && audioCtx.state === 'suspended') {{
+                audioCtx.resume();
+            }}
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onstart = function() {{
+                isListening = true;
+                document.getElementById('status').innerText = "상태: 🟢 마이크 항시 감지 중... (욕설을 말하면 사이렌이 울립니다)";
+                document.getElementById('status').style.color = "green";
+                document.getElementById('startBtn').disabled = true;
+            }};
+
+            recognition.onresult = function(event) {{
+                let currentText = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {{
+                    currentText += event.results[i][0].transcript;
+                }}
+                document.getElementById('transcript').innerText = "인식된 음성: " + currentText;
+
+                // 욕설 단어 감지 검사
+                for (let word of bannedWords) {{
+                    if (currentText.includes(word)) {{
+                        document.getElementById('status').innerText = "🚨 [비상] 욕설 감지됨: " + word + " (소리 정지를 누르세요)";
+                        document.getElementById('status').style.color = "red";
+                        triggerSirenLoop(); // 무한 사이렌 가동
+                        break;
+                    }}
+                }}
+            }};
+
+            recognition.onerror = function(event) {{
+                console.log("Speech Recognition Error:", event.error);
+            }};
+
+            // 마이크 끊김 방지 - 항상 다시 켜기 (Always-On)
+            recognition.onend = function() {{
+                if (isListening) {{
+                    try {{
+                        recognition.start();
+                    }} catch(e) {{
+                        console.log("Restarting listening...", e);
+                    }}
+                }}
+            }};
+
+            recognition.start();
+        }}
+    </script>
+</body>
+</html>
+"""
+
+components.html(full_engine_html, height=310)
+
+# ---------------------------------------------------------
+# 수동 발령 및 이력 입력 영역
+# ---------------------------------------------------------
+st.markdown("---")
+st.subheader("📝 수동 이력 기록 및 텍스트 검사")
+
+manual_text = st.text_input(
+    "🗣️ 직접 텍스트로 테스트하거나 기록할 내용 작성",
+    placeholder="예: 바보라고 말했을 때 이력 저장 테스트...",
 )
 
-# 욕설 감지 로직
-if spoken_text:
-    detected_words = [w for w in banned_words if w in spoken_text]
+if st.button("🔍 텍스트 감지 테스트", type="primary"):
+    if manual_text:
+        detected = [w for w in banned_words if w in manual_text]
+        if detected:
+            st.error(f"🚨 **[욕설 감지]**: `{', '.join(detected)}` 단어가 포착되었습니다.")
+            log_time = time.strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state.detection_logs.insert(
+                0,
+                {
+                    "시각": log_time,
+                    "입력 내용": manual_text,
+                    "감지 단어": ", ".join(detected),
+                    "상태": "🚨 사이렌 발령",
+                },
+            )
+        else:
+            st.success("✅ 감지된 금지어가 없습니다.")
 
-    if detected_words and not st.session_state.is_alarm_on:
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = (
-            f"🤬 욕설 감지: {', '.join(detected_words)}"
-        )
-
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "입력 내용": spoken_text,
-                "감지 단어": ", ".join(detected_words),
-                "상태": "🚨 사이렌 연속 발령",
-            },
-        )
-        st.rerun()
-
-# ---------------------------------------------------------
-# 2. 학교 수칙 원클릭 발령 버튼 영역
-# ---------------------------------------------------------
+# 이력 대시보드
 st.markdown("---")
-st.subheader("📢 학교 수칙 수동 경고 발령")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.button(
-        "🤬 욕설 / 언어폭력 수동 발령",
-        use_container_width=True,
-        type="primary",
-    ):
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🤬 욕설 및 언어폭력 (수동 발령)"
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "입력 내용": "수동 버튼 클릭",
-                "감지 단어": "욕설/언어폭력",
-                "상태": "🚨 사이렌 발령",
-            },
-        )
-        st.rerun()
-
-    st.write("")
-
-    if st.button("🏃‍♂️ 복도 질주 / 소란", use_container_width=True):
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🏃‍♂️ 복도 질주 및 소란"
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "입력 내용": "수동 버튼 클릭",
-                "감지 단어": "복도 소란",
-                "상태": "🚨 사이렌 발령",
-            },
-        )
-        st.rerun()
-
-with col2:
-    if st.button(
-        "🚬 교내 무단 흡연!", use_container_width=True, type="primary"
-    ):
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "🚬 교내 무단 흡연 (수동 발령)"
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "입력 내용": "수동 버튼 클릭",
-                "감지 단어": "무단 흡연",
-                "상태": "🚨 사이렌 발령",
-            },
-        )
-        st.rerun()
-
-    st.write("")
-
-    if st.button("📱 수업 중 스마트폰 사용", use_container_width=True):
-        st.session_state.is_alarm_on = True
-        st.session_state.current_rule = "📱 수업 중 스마트폰 무단 사용"
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "입력 내용": "수동 버튼 클릭",
-                "감지 단어": "스마트폰 사용",
-                "상태": "🚨 사이렌 발령",
-            },
-        )
-        st.rerun()
-
-# ---------------------------------------------------------
-# 3. 감지 및 발령 이력 기록
-# ---------------------------------------------------------
-st.markdown("---")
-st.subheader("📜 실시간 감지 및 발령 이력")
+st.subheader("📜 실시간 음성 감지 기록 이력")
 
 if st.session_state.detection_logs:
     df_logs = pd.DataFrame(st.session_state.detection_logs)
