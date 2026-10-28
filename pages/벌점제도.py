@@ -96,7 +96,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏠 홈", "✏️ 벌점 기록하기", "�
 # TAB 1: 홈 화면
 # -------------------------------------------------------------------
 with tab1:
-    st.subheader("안녕하세요! 2학년 3반 👋")
+    st.subheader("안녕하세요! 1학년 13반 👋")
     
     # 누적 벌점 계산 (양수로 표시)
     total_score = abs(sum(r["score"] for r in st.session_state.records))
