@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="학교 6대 생활 수칙 & 유사 발음 무한 경고 사이렌",
+    page_title="학교 10대 생활 수칙 통합 감지 무한 사이렌",
     page_icon="🚨",
     layout="centered",
 )
@@ -14,25 +14,25 @@ st.set_page_config(
 if "detection_logs" not in st.session_state:
     st.session_state.detection_logs = []
 
-st.title("🚨 학교 생활 수칙 & 유사 발음 항시 감지 사이렌")
+st.title("🚨 학교 10대 생활 수칙 실시간 통합 감지 사이렌")
 st.caption(
-    "유사 발음 비속어 및 학교 6대 규칙 위반 음성이 들리면 끄기 전까지 사이렌이 계속 울립니다."
+    "교내 10대 위반 수칙 및 유사 발음 음성이 들리면 끄기 전까지 비상 사이렌이 계속 울립니다."
 )
 
 # 사이드바 감지 규칙 설정
-st.sidebar.header("⚙️ 교내 수칙 & 감지 단어 설정")
+st.sidebar.header("⚙️ 교내 10대 수칙 감지 키워드 설정")
 
-st.sidebar.subheader("1️⃣ 욕설 & 유사 발음 감지 단어")
+# 1. 욕설 및 비속어
 banned_words_input = st.sidebar.text_input(
-    "욕설/비속어 키워드 (쉼표 구분)",
+    "1️⃣ 욕설/비속어/유사발음",
     value="씨발, 시발, 십팔, 개새끼, 미친, 바보, 빡통, 좆, 닥쳐",
 )
 banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
 
-st.sidebar.subheader("2️⃣ 학교 5대 금지 행위 키워드")
+# 2. 학교 종합 규칙 위반 키워드 (10대 수칙)
 school_rules_input = st.sidebar.text_input(
-    "수칙 위반 키워드 (쉼표 구분)",
-    value="담배, 흡연, 꽁초, 스마트폰, 핸드폰, 폰제출, 뛰어, 소란, 부셔, 쓰레기",
+    "2️⃣ 교내 10대 수칙 위반 키워드",
+    value="담배, 흡연, 꽁초, 스마트폰, 핸드폰, 폰제출, 뛰어, 소란, 부셔, 무단외출, 월담, 담치기, 싸움, 폭력, 협박, 커닝, 부정행위, 반항, 사복",
 )
 school_words = [w.strip() for w in school_rules_input.split(",") if w.strip()]
 
@@ -91,21 +91,11 @@ full_engine_html = f"""
             min-height: 45px;
             text-align: left;
         }}
-        .rule-badge {{
-            display: inline-block;
-            background: #ffe3e3;
-            color: #c92a2a;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            margin: 2px;
-            font-weight: bold;
-        }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h3>🎙️ 실시간 교내 수칙 & 유사 발음 감지기</h3>
+        <h3>🎙️ 실시간 교내 10대 수칙 감지기</h3>
         <button id="startBtn" class="btn" onclick="startContinuousListening()">▶️ 마이크 항시 감지 시작</button>
         <button id="stopAlarmBtn" class="btn btn-stop" onclick="stopAlarmSound()">🛑 경고음 끄기 (소리 정지)</button>
         
@@ -137,14 +127,13 @@ full_engine_html = f"""
             return result;
         }}
 
-        // 자음/모음 변형 유사도 매칭 (비슷하게 말해도 감지)
+        // 유사도 매칭 (비슷한 발음도 자동 검출)
         function checkSimilarPronunciation(input, target) {{
             const cleanInput = input.replace(/\\s+/g, '');
             const cleanTarget = target.replace(/\\s+/g, '');
             
             if (cleanInput.includes(cleanTarget)) return true;
 
-            // 초성 유사성 검사
             const inputCho = getHangulChosung(cleanInput);
             const targetCho = getHangulChosung(cleanTarget);
             
@@ -155,7 +144,7 @@ full_engine_html = f"""
             return false;
         }}
 
-        // 무한 사이렌 소리 발생
+        // 무한 비상 사이렌 발령
         function triggerSirenLoop() {{
             if (!audioCtx) {{
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -173,7 +162,7 @@ full_engine_html = f"""
                 masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
                 masterGain.connect(audioCtx.destination);
 
-                [600, 950, 1300].forEach((baseFreq, i) => {{
+                [650, 1000, 1350].forEach((baseFreq, i) => {{
                     const osc = audioCtx.createOscillator();
                     const gain = audioCtx.createGain();
                     osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
@@ -232,7 +221,7 @@ full_engine_html = f"""
 
             recognition.onstart = function() {{
                 isListening = true;
-                document.getElementById('status').innerText = "상태: 🟢 마이크 항시 감지 중... (욕설/유사발음/교내위반 감지 시 사이렌)";
+                document.getElementById('status').innerText = "상태: 🟢 마이크 항시 감지 중... (교내 수칙 위반 감지 시 사이렌)";
                 document.getElementById('status').style.color = "green";
                 document.getElementById('startBtn').disabled = true;
             }};
@@ -247,14 +236,14 @@ full_engine_html = f"""
                 // 1. 욕설 및 유사 발음 감지
                 for (let word of bannedWords) {{
                     if (checkSimilarPronunciation(currentText, word)) {{
-                        document.getElementById('status').innerText = "🚨 [비상] 욕설/유사발음 감지됨: '" + word + "' (정지 버튼을 누르세요)";
+                        document.getElementById('status').innerText = "🚨 [비상] 욕설/유사발음 감지: '" + word + "'";
                         document.getElementById('status').style.color = "red";
                         triggerSirenLoop();
                         return;
                     }}
                 }}
 
-                // 2. 학교 5대 위반 수칙 키워드 감지
+                // 2. 학교 10대 위반 수칙 키워드 감지
                 for (let word of schoolWords) {{
                     if (checkSimilarPronunciation(currentText, word)) {{
                         document.getElementById('status').innerText = "🚨 [학교 수칙 위반 감지]: '" + word + "' 관련 행위 포착!";
@@ -289,27 +278,30 @@ full_engine_html = f"""
 components.html(full_engine_html, height=310)
 
 # ---------------------------------------------------------
-# 학교 6대 필수 규정 세부 안내
+# 학교 10대 필수 규정 세부 안내
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📋 교내 6대 필수 생활 수칙 안내")
+st.subheader("📋 감지 대상 교내 10대 생활 수칙")
 
 col1, col2 = st.columns(2)
 with col1:
     st.markdown(
         """
-    - **1️⃣ 바른 언어 사용**: 욕설, 비속어, 비하 표현 및 유사 욕설 사용 금지
-    - **2️⃣ 교내 완전 금연**: 화장실, 교사 뒤편, 운동장 전체 금연구역
-    - **3️⃣ 수업 중 스마트폰 제한**: 수업 시작 전 전원 OFF 또는 제출 수칙 준수
+    - **1️⃣ 바른 언어 사용**: 욕설, 비속어, 비하 발언 및 유사 발음
+    - **2️⃣ 교내 완전 금연**: 화장실, 교사 뒤편, 전자담배 포함
+    - **3️⃣ 스마트폰 사용 제한**: 수업 중 무단 사용, 게임, 미제출
+    - **4️⃣ 복도 침묵 & 통행**: 복도 질주, 고성방가, 소란 행위
+    - **5️⃣ 무단 외출 금지**: 월담, 담치기, 수업 시간 무단 이탈
     """
     )
 with col2:
-    # 4, 5, 6번 규칙 추가
     st.markdown(
         """
-    - **4️⃣ 복도 우측통행 및 침묵**: 복도 무단 질주 및 고성방가 금지
-    - **5️⃣ 공공 기물 보호**: 학교 기물 파손 및 낙서 행위 엄금
-    - **6️⃣ 교복 및 용의 단정**: 규정에 맞는 교복 착용 및 용의 수칙 준수
+    - **6️⃣ 교내 폭력 예방**: 싸움, 위협, 협박, 갈취 행위 엄금
+    - **7️⃣ 공공 기물 보호**: 기물 파손, 시설물 훼손 및 낙서
+    - **8️⃣ 정직한 평가**: 시험 중 부정행위, 커닝, 답안 공유
+    - **9️⃣ 교권 보호**: 교사 지시 불응, 수업 방해, 반항
+    - **🔟 용의 복장 규정**: 무단 사복 착용 및 복장 위반
     """
     )
 
@@ -320,28 +312,4 @@ st.markdown("---")
 st.subheader("📜 실시간 음성 및 위반 기록 이력")
 
 manual_log = st.text_input(
-    "📝 직접 위반 내용을 적어 수동으로 기록 남기기",
-    placeholder="예: 복도에서 고성방가 및 스마트폰 사용...",
-)
-if st.button("➕ 수동 이력 추가", use_container_width=True):
-    if manual_log:
-        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.detection_logs.insert(
-            0,
-            {
-                "시각": log_time,
-                "기록 내용": manual_log,
-                "상태": "🚨 수칙 위반 기록됨",
-            },
-        )
-        st.success("이력에 기록되었습니다.")
-
-if st.session_state.detection_logs:
-    df_logs = pd.DataFrame(st.session_state.detection_logs)
-    st.dataframe(df_logs, use_container_width=True)
-
-    if st.button("🗑️ 전체 이력 초기화"):
-        st.session_state.detection_logs = []
-        st.rerun()
-else:
-    st.write("아직 기록된 수칙 위반 내용이 없습니다.")
+    "📝 직접 위반
