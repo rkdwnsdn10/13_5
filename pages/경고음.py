@@ -5,7 +5,7 @@ import streamlit.components.v1 as components
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="실시간 음성 항시 감지 무한 사이렌",
+    page_title="학교 6대 생활 수칙 & 유사 발음 무한 경고 사이렌",
     page_icon="🚨",
     layout="centered",
 )
@@ -13,27 +13,35 @@ st.set_page_config(
 # 세션 이력 관리
 if "detection_logs" not in st.session_state:
     st.session_state.detection_logs = []
-if "last_detected" not in st.session_state:
-    st.session_state.last_detected = ""
 
-st.title("🚨 실시간 음성 항시 감지 & 무한 사이렌")
+st.title("🚨 학교 생활 수칙 & 유사 발음 항시 감지 사이렌")
 st.caption(
-    "마이크를 켜두면 항상 켜진 상태로 음성을 분석하며, 욕설 감지 시 끄기 전까지 사이렌이 계속 울립니다."
+    "유사 발음 비속어 및 학교 6대 규칙 위반 음성이 들리면 끄기 전까지 사이렌이 계속 울립니다."
 )
 
-# 사이드바 설정
-st.sidebar.header("⚙️ 음성 감지 규칙 설정")
+# 사이드바 감지 규칙 설정
+st.sidebar.header("⚙️ 교내 수칙 & 감지 단어 설정")
+
+st.sidebar.subheader("1️⃣ 욕설 & 유사 발음 감지 단어")
 banned_words_input = st.sidebar.text_input(
-    "🚫 감지할 욕설/금지어 목록 (쉼표 구분)",
-    value="바보, 멍청이, 짜증, 씨발, 개새끼, 미친, 시발, 좆",
+    "욕설/비속어 키워드 (쉼표 구분)",
+    value="씨발, 시발, 십팔, 개새끼, 미친, 바보, 빡통, 좆, 닥쳐",
 )
 banned_words = [w.strip() for w in banned_words_input.split(",") if w.strip()]
 
-# 자바스크립트 전용 배열 포맷 변환
+st.sidebar.subheader("2️⃣ 학교 5대 금지 행위 키워드")
+school_rules_input = st.sidebar.text_input(
+    "수칙 위반 키워드 (쉼표 구분)",
+    value="담배, 흡연, 꽁초, 스마트폰, 핸드폰, 폰제출, 뛰어, 소란, 부셔, 쓰레기",
+)
+school_words = [w.strip() for w in school_rules_input.split(",") if w.strip()]
+
+# 자바스크립트 전용 배열 변환
 banned_words_js = str(banned_words)
+school_words_js = str(school_words)
 
 # ---------------------------------------------------------
-# 통합 항시 음성 감지 & 무한 사이렌 자바스크립트 엔진
+# 통합 항시 음성 감지 & 유사 발음 분석 & 무한 사이렌 엔진
 # ---------------------------------------------------------
 full_engine_html = f"""
 <!DOCTYPE html>
@@ -63,35 +71,46 @@ full_engine_html = f"""
             background-color: #333333;
         }}
         .status-box {{
-            font-size: 17px;
+            font-size: 16px;
             font-weight: bold;
             margin: 15px 0;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 12px;
+            border-radius: 6px;
             background: #ffffff;
             border: 1px solid #ffccd5;
             color: #d90429;
         }}
         .transcript-box {{
             margin-top: 10px;
-            padding: 10px;
-            background: #fafafa;
+            padding: 12px;
+            background: #ffffff;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: 6px;
             font-size: 14px;
             color: #222;
             min-height: 45px;
+            text-align: left;
+        }}
+        .rule-badge {{
+            display: inline-block;
+            background: #ffe3e3;
+            color: #c92a2a;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin: 2px;
+            font-weight: bold;
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h3>🎙️ 실시간 마이크 항시 감지 및 알림</h3>
+        <h3>🎙️ 실시간 교내 수칙 & 유사 발음 감지기</h3>
         <button id="startBtn" class="btn" onclick="startContinuousListening()">▶️ 마이크 항시 감지 시작</button>
         <button id="stopAlarmBtn" class="btn btn-stop" onclick="stopAlarmSound()">🛑 경고음 끄기 (소리 정지)</button>
         
-        <div id="status" class="status-box">상태: 감지 대기 중 (시작 버튼을 눌러주세요)</div>
-        <div id="transcript" class="transcript-box">마이크로 하시는 말씀이 여기에 실시간으로 표시됩니다...</div>
+        <div id="status" class="status-box">상태: 감지 대기 중 ('▶️ 마이크 항시 감지 시작'을 누르세요)</div>
+        <div id="transcript" class="transcript-box">음성 인식 내용이 여기에 실시간으로 표시됩니다...</div>
     </div>
 
     <script>
@@ -99,9 +118,44 @@ full_engine_html = f"""
         let isListening = false;
         let alarmInterval = null;
         let audioCtx = null;
-        const bannedWords = {banned_words_js};
 
-        // 연속 사이렌 오디오 발령
+        const bannedWords = {banned_words_js};
+        const schoolWords = {school_words_js};
+
+        // 한글 초성 분리 알고리즘 (유사 발음 검출용)
+        const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+        function getHangulChosung(str) {{
+            let result = "";
+            for (let i = 0; i < str.length; i++) {{
+                let code = str.charCodeAt(i) - 44032;
+                if (code >= 0 && code <= 11172) {{
+                    result += CHO[Math.floor(code / 588)];
+                }} else {{
+                    result += str.charAt(i);
+                }}
+            }}
+            return result;
+        }}
+
+        // 자음/모음 변형 유사도 매칭 (비슷하게 말해도 감지)
+        function checkSimilarPronunciation(input, target) {{
+            const cleanInput = input.replace(/\\s+/g, '');
+            const cleanTarget = target.replace(/\\s+/g, '');
+            
+            if (cleanInput.includes(cleanTarget)) return true;
+
+            // 초성 유사성 검사
+            const inputCho = getHangulChosung(cleanInput);
+            const targetCho = getHangulChosung(cleanTarget);
+            
+            if (inputCho.includes(targetCho) && targetCho.length >= 2) {{
+                return true;
+            }}
+
+            return false;
+        }}
+
+        // 무한 사이렌 소리 발생
         function triggerSirenLoop() {{
             if (!audioCtx) {{
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -111,7 +165,7 @@ full_engine_html = f"""
                 audioCtx.resume();
             }}
 
-            if (alarmInterval) return; // 이미 울리고 있다면 중복 방지
+            if (alarmInterval) return;
 
             function playSirenTone() {{
                 if (!audioCtx) return;
@@ -119,15 +173,15 @@ full_engine_html = f"""
                 masterGain.gain.setValueAtTime(1.0, audioCtx.currentTime);
                 masterGain.connect(audioCtx.destination);
 
-                [600, 900, 1200].forEach((baseFreq, i) => {{
+                [600, 950, 1300].forEach((baseFreq, i) => {{
                     const osc = audioCtx.createOscillator();
                     const gain = audioCtx.createGain();
                     osc.type = i % 2 === 0 ? 'sawtooth' : 'square';
 
                     osc.frequency.setValueAtTime(baseFreq, audioCtx.currentTime);
-                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, audioCtx.currentTime + 0.3);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 650, audioCtx.currentTime + 0.3);
                     osc.frequency.linearRampToValueAtTime(baseFreq, audioCtx.currentTime + 0.6);
-                    osc.frequency.linearRampToValueAtTime(baseFreq + 600, audioCtx.currentTime + 0.9);
+                    osc.frequency.linearRampToValueAtTime(baseFreq + 650, audioCtx.currentTime + 0.9);
 
                     gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
                     osc.connect(gain);
@@ -139,10 +193,10 @@ full_engine_html = f"""
             }}
 
             playSirenTone();
-            alarmInterval = setInterval(playSirenTone, 1000); // 1초 간격 무한 반복
+            alarmInterval = setInterval(playSirenTone, 1000);
         }}
 
-        // 사이렌 정지
+        // 소리 정지
         function stopAlarmSound() {{
             if (alarmInterval) {{
                 clearInterval(alarmInterval);
@@ -151,15 +205,15 @@ full_engine_html = f"""
             if (audioCtx) {{
                 audioCtx.suspend();
             }}
-            document.getElementById('status').innerText = isListening ? "상태: 🟢 마이크 항시 감지 중..." : "상태: 감지 대기 중";
+            document.getElementById('status').innerText = isListening ? "상태: 🟢 감지 중 (음성 모니터링 활성화)" : "상태: 감지 대기 중";
             document.getElementById('status').style.color = isListening ? "green" : "#d90429";
         }}
 
-        // 실시간 항시 음성 감지
+        // 실시간 음성 항시 감지
         function startContinuousListening() {{
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {{
-                alert("이 브라우저는 음성 인식을 지원하지 않습니다. Chrome(크롬) 브라우저를 이용해 주세요.");
+                alert("Chrome(크롬) 브라우저에서 사용해 주세요.");
                 return;
             }}
 
@@ -178,7 +232,7 @@ full_engine_html = f"""
 
             recognition.onstart = function() {{
                 isListening = true;
-                document.getElementById('status').innerText = "상태: 🟢 마이크 항시 감지 중... (욕설을 말하면 사이렌이 울립니다)";
+                document.getElementById('status').innerText = "상태: 🟢 마이크 항시 감지 중... (욕설/유사발음/교내위반 감지 시 사이렌)";
                 document.getElementById('status').style.color = "green";
                 document.getElementById('startBtn').disabled = true;
             }};
@@ -188,30 +242,39 @@ full_engine_html = f"""
                 for (let i = event.resultIndex; i < event.results.length; ++i) {{
                     currentText += event.results[i][0].transcript;
                 }}
-                document.getElementById('transcript').innerText = "인식된 음성: " + currentText;
+                document.getElementById('transcript').innerText = "🗣️ 인식된 음성: " + currentText;
 
-                // 욕설 단어 감지 검사
+                // 1. 욕설 및 유사 발음 감지
                 for (let word of bannedWords) {{
-                    if (currentText.includes(word)) {{
-                        document.getElementById('status').innerText = "🚨 [비상] 욕설 감지됨: " + word + " (소리 정지를 누르세요)";
+                    if (checkSimilarPronunciation(currentText, word)) {{
+                        document.getElementById('status').innerText = "🚨 [비상] 욕설/유사발음 감지됨: '" + word + "' (정지 버튼을 누르세요)";
                         document.getElementById('status').style.color = "red";
-                        triggerSirenLoop(); // 무한 사이렌 가동
-                        break;
+                        triggerSirenLoop();
+                        return;
+                    }}
+                }}
+
+                // 2. 학교 5대 위반 수칙 키워드 감지
+                for (let word of schoolWords) {{
+                    if (checkSimilarPronunciation(currentText, word)) {{
+                        document.getElementById('status').innerText = "🚨 [학교 수칙 위반 감지]: '" + word + "' 관련 행위 포착!";
+                        document.getElementById('status').style.color = "red";
+                        triggerSirenLoop();
+                        return;
                     }}
                 }}
             }};
 
             recognition.onerror = function(event) {{
-                console.log("Speech Recognition Error:", event.error);
+                console.log("Speech Error:", event.error);
             }};
 
-            // 마이크 끊김 방지 - 항상 다시 켜기 (Always-On)
             recognition.onend = function() {{
                 if (isListening) {{
                     try {{
                         recognition.start();
                     }} catch(e) {{
-                        console.log("Restarting listening...", e);
+                        console.log("Restarting speech...", e);
                     }}
                 }}
             }};
@@ -226,44 +289,59 @@ full_engine_html = f"""
 components.html(full_engine_html, height=310)
 
 # ---------------------------------------------------------
-# 수동 발령 및 이력 입력 영역
+# 학교 6대 필수 규정 세부 안내
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📝 수동 이력 기록 및 텍스트 검사")
+st.subheader("📋 교내 6대 필수 생활 수칙 안내")
 
-manual_text = st.text_input(
-    "🗣️ 직접 텍스트로 테스트하거나 기록할 내용 작성",
-    placeholder="예: 바보라고 말했을 때 이력 저장 테스트...",
-)
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown(
+        """
+    - **1️⃣ 바른 언어 사용**: 욕설, 비속어, 비하 표현 및 유사 욕설 사용 금지
+    - **2️⃣ 교내 완전 금연**: 화장실, 교사 뒤편, 운동장 전체 금연구역
+    - **3️⃣ 수업 중 스마트폰 제한**: 수업 시작 전 전원 OFF 또는 제출 수칙 준수
+    """
+    )
+with col2:
+    # 4, 5, 6번 규칙 추가
+    st.markdown(
+        """
+    - **4️⃣ 복도 우측통행 및 침묵**: 복도 무단 질주 및 고성방가 금지
+    - **5️⃣ 공공 기물 보호**: 학교 기물 파손 및 낙서 행위 엄금
+    - **6️⃣ 교복 및 용의 단정**: 규정에 맞는 교복 착용 및 용의 수칙 준수
+    """
+    )
 
-if st.button("🔍 텍스트 감지 테스트", type="primary"):
-    if manual_text:
-        detected = [w for w in banned_words if w in manual_text]
-        if detected:
-            st.error(f"🚨 **[욕설 감지]**: `{', '.join(detected)}` 단어가 포착되었습니다.")
-            log_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.detection_logs.insert(
-                0,
-                {
-                    "시각": log_time,
-                    "입력 내용": manual_text,
-                    "감지 단어": ", ".join(detected),
-                    "상태": "🚨 사이렌 발령",
-                },
-            )
-        else:
-            st.success("✅ 감지된 금지어가 없습니다.")
-
-# 이력 대시보드
+# ---------------------------------------------------------
+# 감지 이력 리포트 (Pandas)
+# ---------------------------------------------------------
 st.markdown("---")
-st.subheader("📜 실시간 음성 감지 기록 이력")
+st.subheader("📜 실시간 음성 및 위반 기록 이력")
+
+manual_log = st.text_input(
+    "📝 직접 위반 내용을 적어 수동으로 기록 남기기",
+    placeholder="예: 복도에서 고성방가 및 스마트폰 사용...",
+)
+if st.button("➕ 수동 이력 추가", use_container_width=True):
+    if manual_log:
+        log_time = time.strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.detection_logs.insert(
+            0,
+            {
+                "시각": log_time,
+                "기록 내용": manual_log,
+                "상태": "🚨 수칙 위반 기록됨",
+            },
+        )
+        st.success("이력에 기록되었습니다.")
 
 if st.session_state.detection_logs:
     df_logs = pd.DataFrame(st.session_state.detection_logs)
     st.dataframe(df_logs, use_container_width=True)
 
-    if st.button("🗑️ 이력 전체 초기화"):
+    if st.button("🗑️ 전체 이력 초기화"):
         st.session_state.detection_logs = []
         st.rerun()
 else:
-    st.write("아직 감지된 이력이 없습니다.")
+    st.write("아직 기록된 수칙 위반 내용이 없습니다.")
